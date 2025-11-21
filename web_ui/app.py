@@ -30,8 +30,9 @@ if username is None:
 col1, col2 = st.columns([1, 5])
 with col1:
     try:
-        st.image("assets/eagleeye.jpg", width=100)
-    except:
+        logo_path = Path(__file__).parent / "assets" / "eagleeye.jpg"
+        st.image(str(logo_path), width=100)
+    except Exception as e:
         st.write("🦅")
 with col2:
     st.title("Deep Eagle Dashboard")
