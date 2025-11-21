@@ -31,14 +31,10 @@ st.title("📈 Deep-TimeSeries Dashboard")
 st.markdown("*A visual interface for time-series deep learning*")
 
 # Sidebar navigation
-st.sidebar.title("Navigation")
-st.sidebar.markdown(f"👤 **User:** {username}")
-if st.sidebar.button("🚪 Logout"):
-    logout()
-st.sidebar.markdown("---")
+st.sidebar.title("📈 Navigation")
 
 page = st.sidebar.radio(
-    "Go to",
+    "Select Page",
     [
         "🏠 Home",
         "📊 Dataset Manager",
@@ -49,6 +45,7 @@ page = st.sidebar.radio(
         "🔍 Project Scanner",
         "⚙️ Settings",
     ],
+    label_visibility="collapsed"
 )
 
 st.sidebar.markdown("---")
@@ -57,6 +54,11 @@ st.sidebar.info(
     "Deep-TimeSeries is a modular PyTorch framework "
     "for time-series analysis and forecasting."
 )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"👤 **User:** {username}")
+if st.sidebar.button("🚪 Logout"):
+    logout()
 
 # Version info
 try:
