@@ -13,9 +13,24 @@ from datetime import datetime
 
 from .data import TimeSeriesDataset, TimeSeriesDataLoader
 from .features import FeatureEngine
-from .models import LSTMModel, GRUModel, TransformerModel
+from .models import (
+    LSTMModel,
+    GRUModel,
+    TransformerModel,
+    EnsembleModel,
+    VotingEnsemble,
+    BootstrapEnsemble,
+    create_diverse_ensemble,
+    optimize_ensemble_weights,
+)
 from .training import Trainer
 from .validation import TimeSeriesSplit, WalkForwardSplit
+from .utils import (
+    FeatureImportance,
+    calculate_all_importances,
+    plot_feature_importance,
+    SHAPExplainer,
+)
 
 
 # Usage Analytics
@@ -84,15 +99,32 @@ def clear_usage_stats():
     _tracker.clear_stats()
 
 __all__ = [
+    # Data
     "TimeSeriesDataset",
     "TimeSeriesDataLoader",
+    # Features
     "FeatureEngine",
+    # Models
     "LSTMModel",
     "GRUModel",
     "TransformerModel",
+    # Ensemble
+    "EnsembleModel",
+    "VotingEnsemble",
+    "BootstrapEnsemble",
+    "create_diverse_ensemble",
+    "optimize_ensemble_weights",
+    # Training
     "Trainer",
+    # Validation
     "TimeSeriesSplit",
     "WalkForwardSplit",
+    # Feature Importance
+    "FeatureImportance",
+    "calculate_all_importances",
+    "plot_feature_importance",
+    "SHAPExplainer",
+    # Usage tracking
     "track_usage",
     "get_usage_stats",
     "clear_usage_stats",

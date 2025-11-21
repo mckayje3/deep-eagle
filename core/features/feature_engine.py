@@ -42,9 +42,9 @@ class FeatureEngine:
     def _handle_missing_values(self, data: pd.DataFrame) -> pd.DataFrame:
         """Handle missing values according to strategy"""
         if self.handle_missing == 'ffill':
-            return data.fillna(method='ffill').fillna(method='bfill')
+            return data.ffill().bfill()
         elif self.handle_missing == 'bfill':
-            return data.fillna(method='bfill').fillna(method='ffill')
+            return data.bfill().ffill()
         elif self.handle_missing == 'drop':
             return data.dropna()
         elif self.handle_missing == 'zero':

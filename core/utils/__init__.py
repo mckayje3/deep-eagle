@@ -9,6 +9,12 @@ from .deprecation import (
     DeprecatedClass,
     warn_on_import,
 )
+from .feature_importance import (
+    FeatureImportance,
+    calculate_all_importances,
+    plot_feature_importance,
+    SHAPExplainer,
+)
 
 __all__ = [
     "mse",
@@ -24,4 +30,8 @@ __all__ = [
     "deprecated_argument",
     "DeprecatedClass",
     "warn_on_import",
+    "FeatureImportance",
+    "calculate_all_importances",
+    "plot_feature_importance",
+    "SHAPExplainer",
 ]
