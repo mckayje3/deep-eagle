@@ -7,8 +7,10 @@ import streamlit as st
 from pathlib import Path
 import sys
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path for local imports
+parent_dir = Path(__file__).parent.parent.resolve()
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
 
 st.set_page_config(
     page_title="Deep-TimeSeries Dashboard",
