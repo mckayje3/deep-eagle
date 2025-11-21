@@ -13,8 +13,8 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
 st.set_page_config(
-    page_title="Deep-TimeSeries Dashboard",
-    page_icon="📈",
+    page_title="Deep Eagle Dashboard",
+    page_icon="🦅",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -26,9 +26,16 @@ username = require_authentication()
 if username is None:
     st.stop()
 
-# Main title
-st.title("📈 Deep-TimeSeries Dashboard")
-st.markdown("*A visual interface for time-series deep learning*")
+# Main title with logo
+col1, col2 = st.columns([1, 5])
+with col1:
+    try:
+        st.image("assets/eagleeye.jpg", width=100)
+    except:
+        st.write("🦅")
+with col2:
+    st.title("Deep Eagle Dashboard")
+    st.markdown("*A visual interface for time-series deep learning*")
 
 # Sidebar navigation
 st.sidebar.title("📈 Navigation")
@@ -51,7 +58,7 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### About")
 st.sidebar.info(
-    "Deep-TimeSeries is a modular PyTorch framework "
+    "Deep Eagle is a modular PyTorch framework "
     "for time-series analysis and forecasting."
 )
 
