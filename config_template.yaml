@@ -1,0 +1,58 @@
+project:
+  name: time_series_project
+  description: Time-series deep learning project
+  seed: 42
+
+data:
+  sequence_length: 30
+  forecast_horizon: 1
+  batch_size: 32
+  test_size: 0.2
+  val_size: 0.1
+
+features:
+  scaler: standard  # 'standard', 'minmax', 'robust', or null
+  handle_missing: ffill  # 'ffill', 'bfill', 'drop', or 'zero'
+  technical_indicators:
+    enabled: false
+    include_rsi: true
+    include_macd: true
+    include_bollinger: true
+  datetime_features:
+    enabled: false
+    include_cyclical: true
+
+model:
+  type: lstm  # 'lstm', 'gru', or 'transformer'
+  input_dim: null  # Will be inferred from data
+  hidden_dim: 64
+  output_dim: 1
+  num_layers: 2
+  dropout: 0.1
+  bidirectional: false  # For LSTM/GRU
+  num_heads: 4  # For Transformer
+  dim_feedforward: 256  # For Transformer
+
+training:
+  epochs: 100
+  learning_rate: 0.001
+  optimizer: adam  # 'adam', 'sgd', 'adamw'
+  loss: mse  # 'mse', 'mae', 'huber'
+  device: auto  # 'auto', 'cuda', or 'cpu'
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.0001
+  checkpoint:
+    enabled: true
+    filepath: checkpoints/best_model.pt
+  lr_scheduler:
+    enabled: false
+    type: reduce_on_plateau  # 'reduce_on_plateau', 'step', 'exponential'
+    patience: 5
+    factor: 0.5
+
+validation:
+  method: simple_split  # 'simple_split', 'time_series_cv', 'walk_forward'
+  n_splits: 5
+  gap: 0
