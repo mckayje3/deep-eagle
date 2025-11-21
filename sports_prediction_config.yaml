@@ -1,0 +1,91 @@
+# Sports Prediction Model Configuration
+# Optimized for predicting sports outcomes based on historical statistics
+
+model:
+  type: lstm                    # Best for sequential sports data
+  hidden_dim: 128               # Good capacity for capturing patterns
+  output_dim: 1                 # Single prediction (win probability, score, etc.)
+  num_layers: 2                 # Balance between capacity and overfitting
+  dropout: 0.2                  # Regularization to prevent overfitting
+  bidirectional: false          # Can't see future games when predicting
+
+data:
+  sequence_length: 15           # Last 15 games for context
+  forecast_horizon: 1           # Predict next game
+  batch_size: 32                # Good balance for sports datasets
+  test_size: 0.2                # 20% holdout for testing
+
+training:
+  epochs: 100                   # Enough to converge
+  learning_rate: 0.001          # Conservative learning rate
+  optimizer: adam               # Best for sports data
+  device: auto                  # Use GPU if available
+  early_stopping:
+    enabled: true
+    patience: 15                # Stop if no improvement for 15 epochs
+    min_delta: 0.0001
+
+features:
+  scaler: standard              # Standardize statistics
+  handle_missing: ffill         # Forward fill missing stats
+
+  # Feature engineering for sports
+  rolling_windows:
+    - 3                         # Last 3 games average (recent form)
+    - 5                         # Last 5 games average (short-term trend)
+    - 10                        # Last 10 games average (medium-term form)
+
+  lag_features:
+    - 1                         # Previous game stats
+    - 2                         # Two games ago
+    - 7                         # Week ago (if daily games)
+
+  # Sports-specific features to include:
+  recommended_features:
+    # Team Performance Metrics
+    - points_scored
+    - points_allowed
+    - point_differential
+    - win_percentage
+    - winning_streak
+    - losing_streak
+
+    # Advanced Stats
+    - offensive_efficiency       # Points per possession
+    - defensive_efficiency
+    - turnover_ratio
+    - rebounds_per_game         # (basketball)
+    - yards_per_play            # (football)
+    - batting_average           # (baseball)
+
+    # Context Features
+    - home_away                 # 1 for home, 0 for away
+    - rest_days                 # Days since last game
+    - back_to_back              # Playing consecutive days
+    - days_in_season            # Early vs late season
+    - opponent_strength         # Rolling opponent win %
+
+    # Head-to-Head
+    - h2h_wins                  # Historical wins vs opponent
+    - h2h_point_diff            # Average point diff vs opponent
+
+    # Injury/Roster (if available)
+    - key_players_out           # Number of starters injured
+    - roster_stability          # Games with same starting lineup
+
+# Validation Strategy
+validation:
+  method: walk_forward          # Simulate real-world prediction
+  n_splits: 5                   # 5-fold walk-forward validation
+
+# Loss Function
+loss:
+  type: mse                     # For score prediction
+  # Use binary_crossentropy for win/loss classification
+  # Use categorical_crossentropy for home/draw/away
+
+# Post-processing
+output:
+  clip_predictions: true        # Clip unrealistic predictions
+  min_value: 0                  # Minimum score/probability
+  max_value: 200                # Maximum score (adjust per sport)
