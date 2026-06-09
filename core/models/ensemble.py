@@ -3,13 +3,15 @@ Ensemble methods for combining multiple models
 Provides significant accuracy improvements for predictions
 """
 
+from __future__ import annotations
+
+import logging
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-from typing import List, Optional, Dict, Union, Callable
-from pathlib import Path
 
-from .base_model import BaseTimeSeriesModel
+logger = logging.getLogger(__name__)
 
 
 class EnsembleModel(nn.Module):
@@ -30,9 +32,10 @@ class EnsembleModel(nn.Module):
 
     def __init__(
         self,
-        models: List[nn.Module],
-        method: str = 'average',
-        weights: Optional[List[float]] = None,
+        models: list[nn.Module],
+        method: str = "average",
+        weights: list[float] | None = None,
+        meta_hidden_dim: int = 32,
     ):
         super().__init__()
 
@@ -48,29 +51,44 @@ class EnsembleModel(nn.Module):
             model.eval()
 
         # Initialize weights
-        if method == 'weighted':
+        if method == "weighted":
             if weights is None:
                 # Equal weights by default
                 weights = [1.0 / self.n_models] * self.n_models
             if len(weights) != self.n_models:
-                raise ValueError(f"Number of weights ({len(weights)}) must match number of models ({self.n_models})")
-            self.weights = nn.Parameter(torch.tensor(weights, dtype=torch.float32), requires_grad=False)
-
-        elif method == 'learned':
-            # Learnable weights initialized equally
-            self.weights = nn.Parameter(torch.ones(self.n_models) / self.n_models, requires_grad=True)
-
-        elif method == 'stacking':
-            # Meta-learner that combines model outputs
-            # Get output dimension from first model
-            self.meta_learner = nn.Sequential(
-                nn.Linear(self.n_models, 16),
-                nn.ReLU(),
-                nn.Linear(16, 1)
+                raise ValueError(
+                    f"Number of weights ({len(weights)}) must match number of models ({self.n_models})"
+                )
+            self.weights = nn.Parameter(
+                torch.tensor(weights, dtype=torch.float32), requires_grad=False
             )
 
-        elif method != 'average':
-            raise ValueError(f"Unknown ensemble method: {method}. Use 'average', 'weighted', 'learned', or 'stacking'")
+        elif method == "learned":
+            # Learnable weights initialized equally
+            self.weights = nn.Parameter(
+                torch.ones(self.n_models) / self.n_models, requires_grad=True
+            )
+
+        elif method == "stacking":
+            # Meta-learner that combines the flattened outputs of every base model.
+            # Derive the per-model output size from the first model so stacking
+            # works for arbitrary output_dim / forecast_horizon, not just scalars.
+            self.output_dim = getattr(models[0], "output_dim", 1)
+            self.forecast_horizon = getattr(models[0], "forecast_horizon", 1)
+            self.meta_out_features = self.output_dim * self.forecast_horizon
+            hidden = max(meta_hidden_dim, self.meta_out_features)
+            self.meta_learner = nn.Sequential(
+                nn.Linear(self.n_models * self.meta_out_features, hidden),
+                nn.ReLU(),
+                nn.Linear(hidden, self.meta_out_features),
+            )
+            # The meta-learner starts untrained; call fit_meta_learner() before use.
+            self._meta_fitted = False
+
+        elif method != "average":
+            raise ValueError(
+                f"Unknown ensemble method: {method}. Use 'average', 'weighted', 'learned', or 'stacking'"
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -82,50 +100,112 @@ class EnsembleModel(nn.Module):
         Returns:
             Combined predictions
         """
-        # Get predictions from all models
+        # Base models are frozen (already trained) — always compute their
+        # predictions without tracking gradients. The trainable combination
+        # ('learned' weights / 'stacking' meta-learner) runs *outside* this
+        # block so its parameters still receive gradients. Do not move the
+        # combination inside the no_grad block: that would silently stop the
+        # weights / meta-learner from training.
         predictions = []
-        with torch.no_grad() if self.method != 'stacking' else torch.enable_grad():
+        with torch.no_grad():
             for model in self.models:
-                pred = model(x)
-                predictions.append(pred)
+                predictions.append(model(x))
 
-        # Stack predictions: (n_models, batch, output_dim)
+        # Stack predictions: (n_models, batch, *output_shape)
+        # where output_shape is (output_dim,) or (forecast_horizon, output_dim)
         stacked = torch.stack(predictions, dim=0)
 
-        if self.method == 'average':
+        if self.method == "average":
             # Simple average
             return torch.mean(stacked, dim=0)
 
-        elif self.method in ['weighted', 'learned']:
+        elif self.method in ["weighted", "learned"]:
             # Normalize weights to sum to 1
             normalized_weights = torch.softmax(self.weights, dim=0)
 
-            # Weighted average
-            # weights: (n_models,) -> (n_models, 1, 1)
-            weights_expanded = normalized_weights.view(-1, 1, 1)
+            # Broadcast weights over every trailing dim: (n_models,) -> (n_models, 1, 1, ...)
+            weight_shape = (-1,) + (1,) * (stacked.dim() - 1)
+            weights_expanded = normalized_weights.view(*weight_shape)
             return torch.sum(stacked * weights_expanded, dim=0)
 
-        elif self.method == 'stacking':
-            # Reshape for meta-learner: (batch, n_models)
+        elif self.method == "stacking":
             batch_size = stacked.shape[1]
-            stacked_reshaped = stacked.squeeze(-1).permute(1, 0)  # (batch, n_models)
-            return self.meta_learner(stacked_reshaped)
+            # Flatten each model's output, then concatenate across models:
+            # (n_models, batch, *out) -> (batch, n_models * out_features)
+            flat = stacked.reshape(self.n_models, batch_size, -1)
+            meta_in = flat.permute(1, 0, 2).reshape(batch_size, -1)
+            out = self.meta_learner(meta_in)  # (batch, out_features)
+            # Restore the original output shape
+            if self.forecast_horizon > 1:
+                out = out.view(batch_size, self.forecast_horizon, self.output_dim)
+            return out
 
     def get_weights(self) -> np.ndarray:
         """Get current ensemble weights"""
-        if hasattr(self, 'weights'):
+        if hasattr(self, "weights"):
             normalized = torch.softmax(self.weights, dim=0)
             return normalized.detach().cpu().numpy()
         return np.ones(self.n_models) / self.n_models
 
-    def set_weights(self, weights: List[float]):
+    def set_weights(self, weights: list[float]) -> None:
         """Set ensemble weights manually"""
-        if not hasattr(self, 'weights'):
+        if not hasattr(self, "weights"):
             raise ValueError("Cannot set weights for 'average' or 'stacking' methods")
         with torch.no_grad():
             self.weights.copy_(torch.tensor(weights, dtype=torch.float32))
 
-    def get_individual_predictions(self, x: torch.Tensor) -> List[torch.Tensor]:
+    def fit_meta_learner(
+        self,
+        train_loader,
+        criterion: nn.Module | None = None,
+        epochs: int = 50,
+        learning_rate: float = 0.01,
+    ) -> EnsembleModel:
+        """
+        Train the stacking meta-learner on top of the frozen base models.
+
+        Stacking is useless until this is called — until then the meta-learner is
+        randomly initialised and produces worse results than simple averaging.
+        Only the meta-learner is optimised; the base models stay frozen (their
+        predictions are computed under ``torch.no_grad()`` in ``forward``).
+
+        Args:
+            train_loader: DataLoader yielding (batch_x, batch_y)
+            criterion: Loss function (defaults to ``nn.MSELoss``)
+            epochs: Number of passes over the data
+            learning_rate: Adam learning rate for the meta-learner
+
+        Returns:
+            self, with a trained meta-learner
+        """
+        if self.method != "stacking":
+            raise ValueError("fit_meta_learner() requires the 'stacking' ensemble method")
+
+        criterion = criterion or nn.MSELoss()
+        optimizer = torch.optim.Adam(self.meta_learner.parameters(), lr=learning_rate)
+
+        self.meta_learner.train()
+        for epoch in range(epochs):
+            total_loss = 0.0
+            n_batches = 0
+            for batch_x, batch_y in train_loader:
+                optimizer.zero_grad()
+                predictions = self(batch_x)
+                loss = criterion(predictions, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+                n_batches += 1
+
+            if (epoch + 1) % 10 == 0:
+                avg_loss = total_loss / max(n_batches, 1)
+                logger.info(f"Meta-learner epoch {epoch + 1}/{epochs}: loss={avg_loss:.4f}")
+
+        self.meta_learner.eval()
+        self._meta_fitted = True
+        return self
+
+    def get_individual_predictions(self, x: torch.Tensor) -> list[torch.Tensor]:
         """Get predictions from each individual model"""
         predictions = []
         with torch.no_grad():
@@ -148,8 +228,8 @@ class VotingEnsemble(nn.Module):
 
     def __init__(
         self,
-        models: List[nn.Module],
-        voting: str = 'soft',
+        models: list[nn.Module],
+        voting: str = "soft",
     ):
         super().__init__()
 
@@ -167,7 +247,7 @@ class VotingEnsemble(nn.Module):
         with torch.no_grad():
             for model in self.models:
                 pred = model(x)
-                if self.voting == 'soft':
+                if self.voting == "soft":
                     # Apply softmax if not already probabilities
                     if pred.dim() > 1 and pred.shape[-1] > 1:
                         pred = torch.softmax(pred, dim=-1)
@@ -175,7 +255,7 @@ class VotingEnsemble(nn.Module):
 
         stacked = torch.stack(predictions, dim=0)
 
-        if self.voting == 'soft':
+        if self.voting == "soft":
             # Average probabilities
             return torch.mean(stacked, dim=0)
         else:
@@ -191,8 +271,13 @@ class BootstrapEnsemble:
     """
     Create ensemble through bootstrap aggregating (bagging)
 
-    Trains multiple models on different bootstrap samples of the data
-    for improved generalization and reduced variance.
+    Trains multiple models on different bootstrap samples of the data.
+
+    Note: bootstrap sampling is over windowed examples, which overlap heavily in
+    a time series, so the resulting models are more correlated than in classic
+    bagging — expect a smaller variance-reduction benefit than i.i.d. bagging.
+    For genuinely diverse ensembles prefer ``create_diverse_ensemble`` (varied
+    architectures) or block-bootstrap of contiguous segments.
 
     Args:
         model_class: Class of model to instantiate
@@ -204,7 +289,7 @@ class BootstrapEnsemble:
     def __init__(
         self,
         model_class: type,
-        model_kwargs: Dict,
+        model_kwargs: dict,
         n_estimators: int = 5,
         sample_ratio: float = 0.8,
     ):
@@ -219,10 +304,10 @@ class BootstrapEnsemble:
         self,
         train_loader,
         trainer_class,
-        trainer_kwargs: Dict,
+        trainer_kwargs: dict,
         epochs: int = 100,
         verbose: bool = True,
-    ) -> 'BootstrapEnsemble':
+    ) -> BootstrapEnsemble:
         """
         Train ensemble with bootstrap samples
 
@@ -233,7 +318,7 @@ class BootstrapEnsemble:
             epochs: Training epochs per model
             verbose: Print training progress
         """
-        from torch.utils.data import Subset, DataLoader
+        from torch.utils.data import DataLoader, Subset
 
         dataset = train_loader.dataset
         n_samples = len(dataset)
@@ -241,17 +326,15 @@ class BootstrapEnsemble:
 
         for i in range(self.n_estimators):
             if verbose:
-                print(f"\n{'='*50}")
-                print(f"Training model {i+1}/{self.n_estimators}")
-                print(f"{'='*50}")
+                logger.info("=" * 50)
+                logger.info(f"Training model {i + 1}/{self.n_estimators}")
+                logger.info("=" * 50)
 
             # Create bootstrap sample
             indices = np.random.choice(n_samples, size=sample_size, replace=True)
             bootstrap_dataset = Subset(dataset, indices)
             bootstrap_loader = DataLoader(
-                bootstrap_dataset,
-                batch_size=train_loader.batch_size,
-                shuffle=True
+                bootstrap_dataset, batch_size=train_loader.batch_size, shuffle=True
             )
 
             # Create and train model
@@ -265,7 +348,7 @@ class BootstrapEnsemble:
         self.fitted = True
         return self
 
-    def get_ensemble(self, method: str = 'average') -> EnsembleModel:
+    def get_ensemble(self, method: str = "average") -> EnsembleModel:
         """
         Get ensemble model from trained models
 
@@ -283,12 +366,12 @@ class BootstrapEnsemble:
 
 def create_diverse_ensemble(
     input_dim: int,
-    hidden_dims: List[int] = [64, 128, 256],
-    model_types: List[str] = ['lstm', 'gru'],
+    hidden_dims: list[int] | None = None,
+    model_types: list[str] | None = None,
     output_dim: int = 1,
     num_layers: int = 2,
     dropout: float = 0.2,
-) -> List[nn.Module]:
+) -> list[nn.Module]:
     """
     Create a diverse ensemble with different architectures
 
@@ -305,14 +388,19 @@ def create_diverse_ensemble(
     Returns:
         List of untrained models
     """
-    from .lstm import LSTMModel
     from .gru import GRUModel
+    from .lstm import LSTMModel
     from .transformer import TransformerModel
 
+    if hidden_dims is None:
+        hidden_dims = [64, 128, 256]
+    if model_types is None:
+        model_types = ["lstm", "gru"]
+
     MODEL_CLASSES = {
-        'lstm': LSTMModel,
-        'gru': GRUModel,
-        'transformer': TransformerModel,
+        "lstm": LSTMModel,
+        "gru": GRUModel,
+        "transformer": TransformerModel,
     }
 
     models = []
@@ -323,7 +411,7 @@ def create_diverse_ensemble(
             if model_class is None:
                 raise ValueError(f"Unknown model type: {model_type}")
 
-            if model_type == 'transformer':
+            if model_type == "transformer":
                 model = model_class(
                     input_dim=input_dim,
                     hidden_dim=hidden_dim,
@@ -366,7 +454,7 @@ def optimize_ensemble_weights(
     Returns:
         Ensemble with optimized weights
     """
-    if ensemble.method != 'learned':
+    if ensemble.method != "learned":
         raise ValueError("Weight optimization requires 'learned' ensemble method")
 
     optimizer = torch.optim.Adam([ensemble.weights], lr=learning_rate)
@@ -390,6 +478,6 @@ def optimize_ensemble_weights(
         if (iteration + 1) % 20 == 0:
             avg_loss = total_loss / n_batches
             weights = ensemble.get_weights()
-            print(f"Iteration {iteration+1}: Loss={avg_loss:.4f}, Weights={weights}")
+            logger.info(f"Iteration {iteration + 1}: Loss={avg_loss:.4f}, Weights={weights}")
 
     return ensemble

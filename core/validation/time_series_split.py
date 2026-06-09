@@ -1,7 +1,8 @@
 """Time-series cross-validation strategies"""
 
+from collections.abc import Generator
+
 import numpy as np
-from typing import Generator, Tuple, Optional
 
 
 class TimeSeriesSplit:
@@ -17,12 +18,12 @@ class TimeSeriesSplit:
         gap: Number of samples to skip between train and test (default: 0)
     """
 
-    def __init__(self, n_splits: int = 5, test_size: Optional[int] = None, gap: int = 0):
+    def __init__(self, n_splits: int = 5, test_size: int | None = None, gap: int = 0):
         self.n_splits = n_splits
         self.test_size = test_size
         self.gap = gap
 
-    def split(self, X: np.ndarray) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    def split(self, X: np.ndarray) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """
         Generate train/test indices
 
@@ -91,8 +92,8 @@ class WalkForwardSplit:
     def __init__(
         self,
         n_splits: int = 5,
-        train_size: Optional[int] = None,
-        test_size: Optional[int] = None,
+        train_size: int | None = None,
+        test_size: int | None = None,
         gap: int = 0,
     ):
         self.n_splits = n_splits
@@ -100,7 +101,7 @@ class WalkForwardSplit:
         self.test_size = test_size
         self.gap = gap
 
-    def split(self, X: np.ndarray) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    def split(self, X: np.ndarray) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """
         Generate train/test indices
 
@@ -162,10 +163,10 @@ class WalkForwardSplit:
 
 def train_test_split_temporal(
     X: np.ndarray,
-    y: Optional[np.ndarray] = None,
+    y: np.ndarray | None = None,
     test_size: float = 0.2,
     gap: int = 0,
-) -> Tuple:
+) -> tuple:
     """
     Simple temporal train/test split
 
@@ -186,11 +187,11 @@ def train_test_split_temporal(
         raise ValueError(f"Not enough data for test_size={test_size} and gap={gap}")
 
     X_train = X[:train_end]
-    X_test = X[train_end + gap:]
+    X_test = X[train_end + gap :]
 
     if y is not None:
         y_train = y[:train_end]
-        y_test = y[train_end + gap:]
+        y_test = y[train_end + gap :]
         return X_train, X_test, y_train, y_test
 
     return X_train, X_test

@@ -1,8 +1,12 @@
 """Training callbacks"""
 
-import torch
+from __future__ import annotations
+
+import logging
+
 import numpy as np
-from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class EarlyStopping:
@@ -20,7 +24,7 @@ class EarlyStopping:
         self,
         patience: int = 5,
         min_delta: float = 0,
-        mode: str = 'min',
+        mode: str = "min",
         verbose: bool = True,
     ):
         self.patience = patience
@@ -32,10 +36,10 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
 
-        if mode == 'min':
+        if mode == "min":
             self.monitor_op = np.less
             self.min_delta *= -1
-        elif mode == 'max':
+        elif mode == "max":
             self.monitor_op = np.greater
         else:
             raise ValueError(f"mode must be 'min' or 'max', got {mode}")
@@ -44,8 +48,8 @@ class EarlyStopping:
         self,
         epoch: int,
         trainer,
-        train_results: Dict[str, float],
-        val_results: Optional[Dict[str, float]] = None,
+        train_results: dict[str, float],
+        val_results: dict[str, float] | None = None,
     ) -> bool:
         """
         Called at the end of each epoch
@@ -62,7 +66,7 @@ class EarlyStopping:
         if val_results is None:
             return False
 
-        score = val_results['loss']
+        score = val_results["loss"]
 
         if self.best_score is None:
             self.best_score = score
@@ -70,11 +74,11 @@ class EarlyStopping:
             self.best_score = score
             self.counter = 0
             if self.verbose:
-                print(f"  Validation loss improved to {score:.4f}")
+                logger.info(f"Validation loss improved to {score:.4f}")
         else:
             self.counter += 1
             if self.verbose:
-                print(f"  No improvement for {self.counter}/{self.patience} epochs")
+                logger.info(f"No improvement for {self.counter}/{self.patience} epochs")
 
             if self.counter >= self.patience:
                 self.early_stop = True
@@ -98,8 +102,8 @@ class ModelCheckpoint:
     def __init__(
         self,
         filepath: str,
-        monitor: str = 'val_loss',
-        mode: str = 'min',
+        monitor: str = "val_loss",
+        mode: str = "min",
         save_best_only: bool = True,
         verbose: bool = True,
     ):
@@ -111,9 +115,9 @@ class ModelCheckpoint:
 
         self.best_score = None
 
-        if mode == 'min':
+        if mode == "min":
             self.monitor_op = np.less
-        elif mode == 'max':
+        elif mode == "max":
             self.monitor_op = np.greater
         else:
             raise ValueError(f"mode must be 'min' or 'max', got {mode}")
@@ -122,8 +126,8 @@ class ModelCheckpoint:
         self,
         epoch: int,
         trainer,
-        train_results: Dict[str, float],
-        val_results: Optional[Dict[str, float]] = None,
+        train_results: dict[str, float],
+        val_results: dict[str, float] | None = None,
     ) -> bool:
         """
         Called at the end of each epoch
@@ -141,16 +145,16 @@ class ModelCheckpoint:
         results = val_results if val_results is not None else train_results
 
         # Extract score
-        if self.monitor == 'val_loss':
-            score = results.get('loss', None)
-        elif self.monitor == 'train_loss':
-            score = train_results.get('loss', None)
+        if self.monitor == "val_loss":
+            score = results.get("loss", None)
+        elif self.monitor == "train_loss":
+            score = train_results.get("loss", None)
         else:
             score = results.get(self.monitor, None)
 
         if score is None:
             if self.verbose:
-                print(f"  Warning: {self.monitor} not found in results")
+                logger.warning(f"{self.monitor} not found in results")
             return False
 
         # Check if we should save
@@ -167,7 +171,7 @@ class ModelCheckpoint:
         if should_save:
             trainer.save_checkpoint(self.filepath)
             if self.verbose:
-                print(f"  Model checkpoint saved to {self.filepath}")
+                logger.info(f"Model checkpoint saved to {self.filepath}")
 
         return False
 
@@ -189,8 +193,8 @@ class LearningRateScheduler:
         self,
         epoch: int,
         trainer,
-        train_results: Dict[str, float],
-        val_results: Optional[Dict[str, float]] = None,
+        train_results: dict[str, float],
+        val_results: dict[str, float] | None = None,
     ) -> bool:
         """
         Called at the end of each epoch
@@ -205,17 +209,17 @@ class LearningRateScheduler:
             False (never stops training)
         """
         # Check if scheduler needs validation loss
-        if hasattr(self.scheduler, 'step'):
-            if 'ReduceLROnPlateau' in self.scheduler.__class__.__name__:
+        if hasattr(self.scheduler, "step"):
+            if "ReduceLROnPlateau" in self.scheduler.__class__.__name__:
                 if val_results is not None:
-                    self.scheduler.step(val_results['loss'])
+                    self.scheduler.step(val_results["loss"])
                 else:
-                    self.scheduler.step(train_results['loss'])
+                    self.scheduler.step(train_results["loss"])
             else:
                 self.scheduler.step()
 
         if self.verbose:
-            current_lr = trainer.optimizer.param_groups[0]['lr']
-            print(f"  Learning rate: {current_lr:.6f}")
+            current_lr = trainer.optimizer.param_groups[0]["lr"]
+            logger.info(f"Learning rate: {current_lr:.6f}")
 
         return False

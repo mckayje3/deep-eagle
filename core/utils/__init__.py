@@ -1,20 +1,21 @@
 """Utility functions"""
 
-from .metrics import mse, rmse, mae, mape, r2_score
-from .helpers import set_seed, get_device, count_parameters
+from .checkpoint import safe_torch_load
 from .deprecation import (
+    DeprecatedClass,
     deprecate,
     deprecated,
     deprecated_argument,
-    DeprecatedClass,
     warn_on_import,
 )
 from .feature_importance import (
     FeatureImportance,
+    SHAPExplainer,
     calculate_all_importances,
     plot_feature_importance,
-    SHAPExplainer,
 )
+from .helpers import count_parameters, get_device, set_seed
+from .metrics import mae, mape, mse, r2_score, rmse
 
 __all__ = [
     "mse",
@@ -25,6 +26,7 @@ __all__ = [
     "set_seed",
     "get_device",
     "count_parameters",
+    "safe_torch_load",
     "deprecate",
     "deprecated",
     "deprecated_argument",

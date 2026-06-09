@@ -1,8 +1,12 @@
 """Transformer model for time-series prediction"""
 
+from __future__ import annotations
+
+import math
+
 import torch
 import torch.nn as nn
-import math
+
 from .base_model import BaseTimeSeriesModel
 
 
@@ -22,14 +26,14 @@ class PositionalEncoding(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
 
         # Register as buffer (not a parameter)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: Tensor of shape (batch_size, seq_len, d_model)
         """
-        x = x + self.pe[:x.size(1), :].unsqueeze(0)
+        x = x + self.pe[: x.size(1), :].unsqueeze(0)
         return self.dropout(x)
 
 
@@ -60,6 +64,17 @@ class TransformerModel(BaseTimeSeriesModel):
         forecast_horizon: int = 1,
     ):
         super().__init__(input_dim, hidden_dim, output_dim, num_layers, dropout)
+
+        if num_heads <= 0:
+            raise ValueError(f"num_heads must be positive, got {num_heads}")
+        if hidden_dim % num_heads != 0:
+            raise ValueError(
+                f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})"
+            )
+        if dim_feedforward <= 0:
+            raise ValueError(f"dim_feedforward must be positive, got {dim_feedforward}")
+        if forecast_horizon <= 0:
+            raise ValueError(f"forecast_horizon must be positive, got {forecast_horizon}")
 
         self.num_heads = num_heads
         self.dim_feedforward = dim_feedforward
@@ -130,9 +145,11 @@ class TransformerModel(BaseTimeSeriesModel):
     def get_config(self):
         """Get model configuration"""
         config = super().get_config()
-        config.update({
-            'num_heads': self.num_heads,
-            'dim_feedforward': self.dim_feedforward,
-            'forecast_horizon': self.forecast_horizon,
-        })
+        config.update(
+            {
+                "num_heads": self.num_heads,
+                "dim_feedforward": self.dim_feedforward,
+                "forecast_horizon": self.forecast_horizon,
+            }
+        )
         return config
