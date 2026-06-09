@@ -4,24 +4,25 @@ Basic tests to verify framework functionality
 Run with: pytest tests/test_basic.py
 """
 
-import pytest
 import numpy as np
+import pytest
 import torch
 
 
 def test_imports():
     """Test that all core components can be imported"""
     from core import (
-        TimeSeriesDataset,
-        TimeSeriesDataLoader,
         FeatureEngine,
-        LSTMModel,
         GRUModel,
-        TransformerModel,
-        Trainer,
+        LSTMModel,
+        TimeSeriesDataLoader,
+        TimeSeriesDataset,
         TimeSeriesSplit,
+        Trainer,
+        TransformerModel,
         WalkForwardSplit,
     )
+
     assert TimeSeriesDataset is not None
     assert LSTMModel is not None
 
@@ -54,7 +55,7 @@ def test_dataset_creation():
 
 def test_model_creation():
     """Test creating models"""
-    from core import LSTMModel, GRUModel, TransformerModel
+    from core import GRUModel, LSTMModel, TransformerModel
 
     # LSTM
     lstm = LSTMModel(input_dim=5, hidden_dim=32, output_dim=1)
@@ -93,20 +94,23 @@ def test_model_forward():
 
 def test_feature_engine():
     """Test feature engineering"""
-    from core import FeatureEngine
-    from core.features import LagFeatures
     import pandas as pd
 
+    from core import FeatureEngine
+    from core.features import LagFeatures
+
     # Create data
-    data = pd.DataFrame({
-        'feature1': np.random.randn(100),
-        'feature2': np.random.randn(100),
-    })
+    data = pd.DataFrame(
+        {
+            "feature1": np.random.randn(100),
+            "feature2": np.random.randn(100),
+        }
+    )
 
     # Create feature engine
     engine = FeatureEngine(
         transformers=[LagFeatures(lags=[1, 2])],
-        scaler='standard',
+        scaler="standard",
     )
 
     # Fit and transform
@@ -138,28 +142,28 @@ def test_config_manager():
     from config.config_manager import Config
 
     config_dict = {
-        'model': {
-            'hidden_dim': 64,
-            'dropout': 0.1,
+        "model": {
+            "hidden_dim": 64,
+            "dropout": 0.1,
         },
-        'training': {
-            'learning_rate': 0.001,
-        }
+        "training": {
+            "learning_rate": 0.001,
+        },
     }
 
     config = Config.from_dict(config_dict)
 
     # Test get with dot notation
-    assert config.get('model.hidden_dim') == 64
-    assert config.get('training.learning_rate') == 0.001
-    assert config.get('nonexistent.key', default=42) == 42
+    assert config.get("model.hidden_dim") == 64
+    assert config.get("training.learning_rate") == 0.001
+    assert config.get("nonexistent.key", default=42) == 42
 
     # Test set
-    config.set('model.hidden_dim', 128)
-    assert config.get('model.hidden_dim') == 128
+    config.set("model.hidden_dim", 128)
+    assert config.get("model.hidden_dim") == 128
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run tests
     test_imports()
     print("✓ Imports test passed")

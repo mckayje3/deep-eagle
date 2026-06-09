@@ -3,12 +3,16 @@ Feature importance analysis for time-series models
 Understand what features drive your predictions
 """
 
-import torch
-import torch.nn as nn
+from __future__ import annotations
+
+import logging
+
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Dict, Union, Tuple
-from collections import defaultdict
+import torch
+import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 class FeatureImportance:
@@ -28,7 +32,7 @@ class FeatureImportance:
     def __init__(
         self,
         model: nn.Module,
-        feature_names: Optional[List[str]] = None,
+        feature_names: list[str] | None = None,
     ):
         self.model = model
         self.model.eval()
@@ -39,8 +43,8 @@ class FeatureImportance:
         X: torch.Tensor,
         y: torch.Tensor,
         n_repeats: int = 10,
-        criterion: Optional[nn.Module] = None,
-    ) -> Dict[str, float]:
+        criterion: nn.Module | None = None,
+    ) -> dict[str, float]:
         """
         Calculate permutation importance
 
@@ -106,7 +110,7 @@ class FeatureImportance:
     def gradient_importance(
         self,
         X: torch.Tensor,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Calculate gradient-based feature importance
 
@@ -154,9 +158,9 @@ class FeatureImportance:
         self,
         X: torch.Tensor,
         y: torch.Tensor,
-        criterion: Optional[nn.Module] = None,
+        criterion: nn.Module | None = None,
         baseline_value: float = 0.0,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Calculate ablation importance
 
@@ -213,7 +217,7 @@ class FeatureImportance:
         self,
         X: torch.Tensor,
         y: torch.Tensor,
-        criterion: Optional[nn.Module] = None,
+        criterion: nn.Module | None = None,
     ) -> np.ndarray:
         """
         Calculate importance of each time step
@@ -264,7 +268,7 @@ def calculate_all_importances(
     model: nn.Module,
     X: torch.Tensor,
     y: torch.Tensor,
-    feature_names: Optional[List[str]] = None,
+    feature_names: list[str] | None = None,
     n_repeats: int = 10,
 ) -> pd.DataFrame:
     """
@@ -290,27 +294,29 @@ def calculate_all_importances(
     # Combine into DataFrame
     features = list(perm_imp.keys())
 
-    df = pd.DataFrame({
-        'feature': features,
-        'permutation': [perm_imp[f] for f in features],
-        'gradient': [grad_imp.get(f, 0) for f in features],
-        'ablation': [ablation_imp.get(f, 0) for f in features],
-    })
+    df = pd.DataFrame(
+        {
+            "feature": features,
+            "permutation": [perm_imp[f] for f in features],
+            "gradient": [grad_imp.get(f, 0) for f in features],
+            "ablation": [ablation_imp.get(f, 0) for f in features],
+        }
+    )
 
     # Calculate average importance
-    df['average'] = df[['permutation', 'gradient', 'ablation']].mean(axis=1)
+    df["average"] = df[["permutation", "gradient", "ablation"]].mean(axis=1)
 
     # Sort by average importance
-    df = df.sort_values('average', ascending=False).reset_index(drop=True)
+    df = df.sort_values("average", ascending=False).reset_index(drop=True)
 
     return df
 
 
 def plot_feature_importance(
-    importances: Dict[str, float],
+    importances: dict[str, float],
     title: str = "Feature Importance",
-    top_n: Optional[int] = None,
-    figsize: Tuple[int, int] = (10, 6),
+    top_n: int | None = None,
+    figsize: tuple[int, int] = (10, 6),
 ):
     """
     Plot feature importance as horizontal bar chart
@@ -327,7 +333,7 @@ def plot_feature_importance(
     try:
         import matplotlib.pyplot as plt
     except ImportError:
-        print("matplotlib not installed. Install with: pip install matplotlib")
+        logger.warning("matplotlib not installed. Install with: pip install matplotlib")
         return None
 
     # Sort and optionally limit
@@ -344,14 +350,19 @@ def plot_feature_importance(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    bars = ax.barh(features, values, color='steelblue')
+    bars = ax.barh(features, values, color="steelblue")
 
     # Add value labels
-    for bar, val in zip(bars, values):
-        ax.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2,
-                f'{val:.3f}', va='center', fontsize=9)
+    for bar, val in zip(bars, values, strict=False):
+        ax.text(
+            bar.get_width() + 0.01,
+            bar.get_y() + bar.get_height() / 2,
+            f"{val:.3f}",
+            va="center",
+            fontsize=9,
+        )
 
-    ax.set_xlabel('Importance Score')
+    ax.set_xlabel("Importance Score")
     ax.set_title(title)
     ax.set_xlim(0, max(values) * 1.2)
 
@@ -373,7 +384,7 @@ class SHAPExplainer:
     def __init__(
         self,
         model: nn.Module,
-        background_data: Optional[torch.Tensor] = None,
+        background_data: torch.Tensor | None = None,
     ):
         self.model = model
         self.model.eval()
@@ -384,11 +395,14 @@ class SHAPExplainer:
         """Check if SHAP is installed"""
         try:
             import shap
+
             self.shap = shap
         except ImportError:
             self.shap = None
-            print("SHAP not installed. Install with: pip install shap")
-            print("Using fallback importance methods instead.")
+            logger.warning(
+                "SHAP not installed. Install with: pip install shap. "
+                "Using fallback importance methods instead."
+            )
 
     def _model_predict(self, X: np.ndarray) -> np.ndarray:
         """Wrapper for SHAP to call model"""
@@ -399,9 +413,9 @@ class SHAPExplainer:
 
     def explain(
         self,
-        X: Union[torch.Tensor, np.ndarray],
-        feature_names: Optional[List[str]] = None,
-    ) -> Dict[str, float]:
+        X: torch.Tensor | np.ndarray,
+        feature_names: list[str] | None = None,
+    ) -> dict[str, float]:
         """
         Calculate SHAP values for predictions
 
@@ -413,7 +427,7 @@ class SHAPExplainer:
             Dictionary of feature -> mean absolute SHAP value
         """
         if self.shap is None:
-            print("SHAP not available. Using permutation importance instead.")
+            logger.warning("SHAP not available. Using permutation importance instead.")
             fi = FeatureImportance(self.model, feature_names)
             if isinstance(X, np.ndarray):
                 X = torch.tensor(X, dtype=torch.float32)
@@ -437,12 +451,11 @@ class SHAPExplainer:
             bg_flat = self.background_data.numpy().reshape(self.background_data.shape[0], -1)
             explainer = self.shap.KernelExplainer(
                 lambda x: self._model_predict(x.reshape(-1, *original_shape[1:])),
-                bg_flat[:100]  # Limit background samples
+                bg_flat[:100],  # Limit background samples
             )
         else:
             explainer = self.shap.KernelExplainer(
-                lambda x: self._model_predict(x.reshape(-1, *original_shape[1:])),
-                X_flat[:100]
+                lambda x: self._model_predict(x.reshape(-1, *original_shape[1:])), X_flat[:100]
             )
 
         # Calculate SHAP values
@@ -459,4 +472,4 @@ class SHAPExplainer:
         if total > 0:
             feature_importance = feature_importance / total
 
-        return dict(zip(feature_names, feature_importance))
+        return dict(zip(feature_names, feature_importance, strict=False))

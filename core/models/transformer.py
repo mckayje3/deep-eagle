@@ -1,4 +1,5 @@
 """Transformer model for time-series prediction"""
+
 from __future__ import annotations
 
 import math
@@ -25,14 +26,14 @@ class PositionalEncoding(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
 
         # Register as buffer (not a parameter)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: Tensor of shape (batch_size, seq_len, d_model)
         """
-        x = x + self.pe[:x.size(1), :].unsqueeze(0)
+        x = x + self.pe[: x.size(1), :].unsqueeze(0)
         return self.dropout(x)
 
 
@@ -67,7 +68,9 @@ class TransformerModel(BaseTimeSeriesModel):
         if num_heads <= 0:
             raise ValueError(f"num_heads must be positive, got {num_heads}")
         if hidden_dim % num_heads != 0:
-            raise ValueError(f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})")
+            raise ValueError(
+                f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})"
+            )
         if dim_feedforward <= 0:
             raise ValueError(f"dim_feedforward must be positive, got {dim_feedforward}")
         if forecast_horizon <= 0:
@@ -142,9 +145,11 @@ class TransformerModel(BaseTimeSeriesModel):
     def get_config(self):
         """Get model configuration"""
         config = super().get_config()
-        config.update({
-            'num_heads': self.num_heads,
-            'dim_feedforward': self.dim_feedforward,
-            'forecast_horizon': self.forecast_horizon,
-        })
+        config.update(
+            {
+                "num_heads": self.num_heads,
+                "dim_feedforward": self.dim_feedforward,
+                "forecast_horizon": self.forecast_horizon,
+            }
+        )
         return config

@@ -1,12 +1,12 @@
 """Project scanner integration page"""
 
-import streamlit as st
-import subprocess
 import json
+import subprocess
 from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
+import streamlit as st
 
 
 def show():
@@ -24,10 +24,7 @@ def show():
     # Scanner configuration
     st.subheader("📂 Select Project to Scan")
 
-    scan_method = st.radio(
-        "Choose method:",
-        ["Enter Path", "Browse Recent", "Scan Multiple"]
-    )
+    scan_method = st.radio("Choose method:", ["Enter Path", "Browse Recent", "Scan Multiple"])
 
     scan_results = None
 
@@ -35,7 +32,7 @@ def show():
         project_path = st.text_input(
             "Project path:",
             placeholder="C:\\Users\\...\\my_project",
-            help="Enter the full path to the project directory"
+            help="Enter the full path to the project directory",
         )
 
         col1, col2 = st.columns([1, 3])
@@ -51,14 +48,14 @@ def show():
 
     elif scan_method == "Browse Recent":
         # Store recent scans in session state
-        if 'recent_scans' not in st.session_state:
+        if "recent_scans" not in st.session_state:
             st.session_state.recent_scans = []
 
         if st.session_state.recent_scans:
             selected = st.selectbox(
                 "Select a recent scan:",
                 st.session_state.recent_scans,
-                format_func=lambda x: x.get('project_path', 'Unknown')
+                format_func=lambda x: x.get("project_path", "Unknown"),
             )
 
             if st.button("View Results"):
@@ -72,11 +69,11 @@ def show():
         paths_input = st.text_area(
             "Enter project paths (one per line):",
             height=150,
-            help="Enter multiple project paths, one per line"
+            help="Enter multiple project paths, one per line",
         )
 
         if st.button("🔍 Scan All Projects") and paths_input:
-            paths = [p.strip() for p in paths_input.split('\n') if p.strip()]
+            paths = [p.strip() for p in paths_input.split("\n") if p.strip()]
 
             progress_bar = st.progress(0)
             status_text = st.empty()
@@ -84,7 +81,7 @@ def show():
             all_results = []
 
             for i, path in enumerate(paths):
-                status_text.text(f"Scanning {i+1}/{len(paths)}: {path}")
+                status_text.text(f"Scanning {i + 1}/{len(paths)}: {path}")
                 result = run_scanner(path, check_version=True)
                 if result:
                     all_results.append(result)
@@ -104,29 +101,19 @@ def run_scanner(project_path, check_version=False):
 
     try:
         # Build command
-        cmd = [
-            'python',
-            'tools/scan_usage.py',
-            project_path,
-            '--format', 'json'
-        ]
+        cmd = ["python", "tools/scan_usage.py", project_path, "--format", "json"]
 
         if check_version:
-            cmd.append('--version')
+            cmd.append("--version")
 
         # Run scanner
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             scan_data = json.loads(result.stdout)
 
             # Save to recent scans
-            if 'recent_scans' not in st.session_state:
+            if "recent_scans" not in st.session_state:
                 st.session_state.recent_scans = []
 
             # Add to recent scans (keep last 10)
@@ -159,66 +146,68 @@ def display_scan_results(results):
         st.metric("Files Scanned", f"{results['files_scanned']:,}")
 
     with col2:
-        st.metric("Files Using Deep", results['files_using_deep'])
+        st.metric("Files Using Deep", results["files_using_deep"])
 
     with col3:
-        unique_classes = len(results['summary']['classes'])
+        unique_classes = len(results["summary"]["classes"])
         st.metric("Unique Classes", unique_classes)
 
     with col4:
-        if 'installed_version' in results:
-            st.metric("Version", results['installed_version'])
+        if "installed_version" in results:
+            st.metric("Version", results["installed_version"])
         else:
             st.metric("Version", "Not detected")
 
     st.markdown("---")
 
     # Usage breakdown
-    if results['files_using_deep'] > 0:
+    if results["files_using_deep"] > 0:
         st.subheader("📈 Feature Usage")
 
         col1, col2 = st.columns(2)
 
         with col1:
             # Classes usage
-            if results['summary']['classes']:
-                classes_df = pd.DataFrame([
-                    {'Feature': k, 'Files': v}
-                    for k, v in sorted(
-                        results['summary']['classes'].items(),
-                        key=lambda x: -x[1]
-                    )
-                ])
+            if results["summary"]["classes"]:
+                classes_df = pd.DataFrame(
+                    [
+                        {"Feature": k, "Files": v}
+                        for k, v in sorted(
+                            results["summary"]["classes"].items(), key=lambda x: -x[1]
+                        )
+                    ]
+                )
 
                 fig_classes = px.bar(
                     classes_df,
-                    x='Feature',
-                    y='Files',
-                    title='Classes Used',
-                    color='Files',
-                    color_continuous_scale='Blues'
+                    x="Feature",
+                    y="Files",
+                    title="Classes Used",
+                    color="Files",
+                    color_continuous_scale="Blues",
                 )
                 fig_classes.update_layout(height=400)
                 st.plotly_chart(fig_classes, use_container_width=True)
 
         with col2:
             # Functions usage
-            if results['summary']['functions']:
-                funcs_df = pd.DataFrame([
-                    {'Feature': k, 'Files': v}
-                    for k, v in sorted(
-                        results['summary']['functions'].items(),
-                        key=lambda x: -x[1]
-                    )
-                ])
+            if results["summary"]["functions"]:
+                funcs_df = pd.DataFrame(
+                    [
+                        {"Feature": k, "Files": v}
+                        for k, v in sorted(
+                            results["summary"]["functions"].items(), key=lambda x: -x[1]
+                        )
+                    ]
+                )
 
                 fig_funcs = px.bar(
                     funcs_df,
-                    x='Feature',
-                    y='Files',
-                    title='Functions Used',
-                    color='Files',
-                    color_continuous_scale='Greens'
+                    x="Feature",
+                    y="Files",
+                    title="Functions Used",
+                    color="Files",
+                    color_continuous_scale="Greens",
                 )
                 fig_funcs.update_layout(height=400)
                 st.plotly_chart(fig_funcs, use_container_width=True)
@@ -227,25 +216,25 @@ def display_scan_results(results):
         st.markdown("---")
         st.subheader("📁 File-by-File Breakdown")
 
-        for file_path, usage in results['usage_by_file'].items():
+        for file_path, usage in results["usage_by_file"].items():
             with st.expander(f"📄 {file_path}"):
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    if usage['classes']:
+                    if usage["classes"]:
                         st.markdown("**Classes:**")
-                        for cls in usage['classes']:
+                        for cls in usage["classes"]:
                             st.markdown(f"- {cls}")
 
                 with col2:
-                    if usage['functions']:
+                    if usage["functions"]:
                         st.markdown("**Functions:**")
-                        for func in usage['functions']:
+                        for func in usage["functions"]:
                             st.markdown(f"- {func}")
 
-                if usage['from_imports']:
+                if usage["from_imports"]:
                     st.markdown("**Imports:**")
-                    for module, items in usage['from_imports'].items():
+                    for module, items in usage["from_imports"].items():
                         st.code(f"from {module} import {', '.join(items)}")
 
     else:
@@ -263,27 +252,26 @@ def display_scan_results(results):
             label="📥 Download JSON",
             data=json_str,
             file_name="scan_results.json",
-            mime="application/json"
+            mime="application/json",
         )
 
     with col2:
         # Create summary CSV
         summary_data = []
-        for file_path, usage in results['usage_by_file'].items():
-            summary_data.append({
-                'File': file_path,
-                'Classes': ', '.join(usage['classes']),
-                'Functions': ', '.join(usage['functions'])
-            })
+        for file_path, usage in results["usage_by_file"].items():
+            summary_data.append(
+                {
+                    "File": file_path,
+                    "Classes": ", ".join(usage["classes"]),
+                    "Functions": ", ".join(usage["functions"]),
+                }
+            )
 
         if summary_data:
             summary_df = pd.DataFrame(summary_data)
             csv = summary_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name="scan_summary.csv",
-                mime="text/csv"
+                label="📥 Download CSV", data=csv, file_name="scan_summary.csv", mime="text/csv"
             )
 
 
@@ -294,8 +282,8 @@ def show_batch_results(all_results):
     st.subheader("📊 Batch Scan Summary")
 
     # Aggregate statistics
-    total_files = sum(r['files_scanned'] for r in all_results)
-    total_using = sum(r['files_using_deep'] for r in all_results)
+    total_files = sum(r["files_scanned"] for r in all_results)
+    total_using = sum(r["files_using_deep"] for r in all_results)
 
     col1, col2, col3 = st.columns(3)
 
@@ -313,41 +301,39 @@ def show_batch_results(all_results):
     all_functions = {}
 
     for result in all_results:
-        for cls, count in result['summary']['classes'].items():
+        for cls, count in result["summary"]["classes"].items():
             all_classes[cls] = all_classes.get(cls, 0) + count
 
-        for func, count in result['summary']['functions'].items():
+        for func, count in result["summary"]["functions"].items():
             all_functions[func] = all_functions.get(func, 0) + count
 
     col1, col2 = st.columns(2)
 
     with col1:
         if all_classes:
-            classes_df = pd.DataFrame([
-                {'Class': k, 'Usage Count': v}
-                for k, v in sorted(all_classes.items(), key=lambda x: -x[1])
-            ])
+            classes_df = pd.DataFrame(
+                [
+                    {"Class": k, "Usage Count": v}
+                    for k, v in sorted(all_classes.items(), key=lambda x: -x[1])
+                ]
+            )
 
             fig = px.bar(
-                classes_df,
-                x='Class',
-                y='Usage Count',
-                title='Classes Usage Across All Projects'
+                classes_df, x="Class", y="Usage Count", title="Classes Usage Across All Projects"
             )
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         if all_functions:
-            funcs_df = pd.DataFrame([
-                {'Function': k, 'Usage Count': v}
-                for k, v in sorted(all_functions.items(), key=lambda x: -x[1])
-            ])
+            funcs_df = pd.DataFrame(
+                [
+                    {"Function": k, "Usage Count": v}
+                    for k, v in sorted(all_functions.items(), key=lambda x: -x[1])
+                ]
+            )
 
             fig = px.bar(
-                funcs_df,
-                x='Function',
-                y='Usage Count',
-                title='Functions Usage Across All Projects'
+                funcs_df, x="Function", y="Usage Count", title="Functions Usage Across All Projects"
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -357,13 +343,15 @@ def show_batch_results(all_results):
 
     comparison_data = []
     for result in all_results:
-        comparison_data.append({
-            'Project': Path(result['project_path']).name,
-            'Files Scanned': result['files_scanned'],
-            'Files Using Deep': result['files_using_deep'],
-            'Unique Classes': len(result['summary']['classes']),
-            'Unique Functions': len(result['summary']['functions'])
-        })
+        comparison_data.append(
+            {
+                "Project": Path(result["project_path"]).name,
+                "Files Scanned": result["files_scanned"],
+                "Files Using Deep": result["files_using_deep"],
+                "Unique Classes": len(result["summary"]["classes"]),
+                "Unique Functions": len(result["summary"]["functions"]),
+            }
+        )
 
     comparison_df = pd.DataFrame(comparison_data)
     st.dataframe(comparison_df, use_container_width=True)

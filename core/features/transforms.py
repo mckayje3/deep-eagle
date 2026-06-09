@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Union
 
 
 class RollingWindow:
@@ -14,18 +13,18 @@ class RollingWindow:
         functions: List of functions to apply ('mean', 'std', 'min', 'max', 'sum')
     """
 
-    def __init__(self, windows: List[int], functions: List[str] = ['mean', 'std']):
+    def __init__(self, windows: list[int], functions: list[str] | None = None):
         self.windows = windows
-        self.functions = functions
+        self.functions = functions if functions is not None else ["mean", "std"]
         self.function_map = {
-            'mean': np.mean,
-            'std': np.std,
-            'min': np.min,
-            'max': np.max,
-            'sum': np.sum,
+            "mean": np.mean,
+            "std": np.std,
+            "min": np.min,
+            "max": np.max,
+            "sum": np.sum,
         }
 
-    def transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Apply rolling window transformations"""
         if isinstance(data, np.ndarray):
             data = pd.DataFrame(data)
@@ -39,13 +38,13 @@ class RollingWindow:
                         raise ValueError(f"Unknown function: {func_name}")
 
                     func = self.function_map[func_name]
-                    result[f'{col}_rolling_{window}_{func_name}'] = (
+                    result[f"{col}_rolling_{window}_{func_name}"] = (
                         data[col].rolling(window=window, min_periods=1).apply(func, raw=True)
                     )
 
         return result
 
-    def fit_transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def fit_transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Fit and transform (no fitting needed for rolling windows)"""
         return self.transform(data)
 
@@ -59,11 +58,11 @@ class LagFeatures:
         columns: Specific columns to create lags for (None = all columns)
     """
 
-    def __init__(self, lags: List[int], columns: Optional[List[str]] = None):
+    def __init__(self, lags: list[int], columns: list[str] | None = None):
         self.lags = lags
         self.columns = columns
 
-    def transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Create lag features"""
         if isinstance(data, np.ndarray):
             data = pd.DataFrame(data)
@@ -73,11 +72,11 @@ class LagFeatures:
 
         for col in target_cols:
             for lag in self.lags:
-                result[f'{col}_lag_{lag}'] = data[col].shift(lag)
+                result[f"{col}_lag_{lag}"] = data[col].shift(lag)
 
         return result
 
-    def fit_transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def fit_transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Fit and transform (no fitting needed for lags)"""
         return self.transform(data)
 
@@ -153,37 +152,37 @@ class TechnicalIndicators:
 
         return upper_band, rolling_mean, lower_band
 
-    def transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Apply technical indicators"""
         if isinstance(data, np.ndarray):
-            data = pd.DataFrame(data, columns=[f'feature_{i}' for i in range(data.shape[1])])
+            data = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
 
         result = data.copy()
 
         # Assume first column is price (or apply to all numeric columns)
         for col in data.select_dtypes(include=[np.number]).columns:
             if self.include_rsi:
-                result[f'{col}_rsi'] = self._calculate_rsi(data[col], self.rsi_period)
+                result[f"{col}_rsi"] = self._calculate_rsi(data[col], self.rsi_period)
 
             if self.include_macd:
                 macd, macd_signal, macd_hist = self._calculate_macd(
                     data[col], self.macd_fast, self.macd_slow, self.macd_signal
                 )
-                result[f'{col}_macd'] = macd
-                result[f'{col}_macd_signal'] = macd_signal
-                result[f'{col}_macd_hist'] = macd_hist
+                result[f"{col}_macd"] = macd
+                result[f"{col}_macd_signal"] = macd_signal
+                result[f"{col}_macd_hist"] = macd_hist
 
             if self.include_bollinger:
                 upper, middle, lower = self._calculate_bollinger_bands(
                     data[col], self.bollinger_window, self.bollinger_std
                 )
-                result[f'{col}_bb_upper'] = upper
-                result[f'{col}_bb_middle'] = middle
-                result[f'{col}_bb_lower'] = lower
+                result[f"{col}_bb_upper"] = upper
+                result[f"{col}_bb_middle"] = middle
+                result[f"{col}_bb_lower"] = lower
 
         return result
 
-    def fit_transform(self, data: Union[np.ndarray, pd.DataFrame]) -> pd.DataFrame:
+    def fit_transform(self, data: np.ndarray | pd.DataFrame) -> pd.DataFrame:
         """Fit and transform"""
         return self.transform(data)
 
@@ -214,7 +213,7 @@ class DateTimeFeatures:
         self.include_hour = include_hour
         self.include_is_weekend = include_is_weekend
 
-    def transform(self, data: Union[pd.DataFrame, pd.DatetimeIndex]) -> pd.DataFrame:
+    def transform(self, data: pd.DataFrame | pd.DatetimeIndex) -> pd.DataFrame:
         """Extract datetime features"""
         if isinstance(data, pd.DataFrame):
             # Assume index is datetime
@@ -228,31 +227,31 @@ class DateTimeFeatures:
             raise ValueError("Data must have DatetimeIndex or be a DatetimeIndex")
 
         if self.include_day_of_week:
-            result['day_of_week'] = dt_index.dayofweek
+            result["day_of_week"] = dt_index.dayofweek
 
             if self.include_cyclical:
-                result['day_of_week_sin'] = np.sin(2 * np.pi * dt_index.dayofweek / 7)
-                result['day_of_week_cos'] = np.cos(2 * np.pi * dt_index.dayofweek / 7)
+                result["day_of_week_sin"] = np.sin(2 * np.pi * dt_index.dayofweek / 7)
+                result["day_of_week_cos"] = np.cos(2 * np.pi * dt_index.dayofweek / 7)
 
         if self.include_month:
-            result['month'] = dt_index.month
+            result["month"] = dt_index.month
 
             if self.include_cyclical:
-                result['month_sin'] = np.sin(2 * np.pi * dt_index.month / 12)
-                result['month_cos'] = np.cos(2 * np.pi * dt_index.month / 12)
+                result["month_sin"] = np.sin(2 * np.pi * dt_index.month / 12)
+                result["month_cos"] = np.cos(2 * np.pi * dt_index.month / 12)
 
-        if self.include_hour and hasattr(dt_index, 'hour'):
-            result['hour'] = dt_index.hour
+        if self.include_hour and hasattr(dt_index, "hour"):
+            result["hour"] = dt_index.hour
 
             if self.include_cyclical:
-                result['hour_sin'] = np.sin(2 * np.pi * dt_index.hour / 24)
-                result['hour_cos'] = np.cos(2 * np.pi * dt_index.hour / 24)
+                result["hour_sin"] = np.sin(2 * np.pi * dt_index.hour / 24)
+                result["hour_cos"] = np.cos(2 * np.pi * dt_index.hour / 24)
 
         if self.include_is_weekend:
-            result['is_weekend'] = (dt_index.dayofweek >= 5).astype(int)
+            result["is_weekend"] = (dt_index.dayofweek >= 5).astype(int)
 
         return result
 
-    def fit_transform(self, data: Union[pd.DataFrame, pd.DatetimeIndex]) -> pd.DataFrame:
+    def fit_transform(self, data: pd.DataFrame | pd.DatetimeIndex) -> pd.DataFrame:
         """Fit and transform"""
         return self.transform(data)

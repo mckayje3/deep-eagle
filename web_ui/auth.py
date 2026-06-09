@@ -2,6 +2,7 @@
 Authentication module for Deep-TimeSeries Dashboard
 Handles user login and session management
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +10,6 @@ import json
 import logging
 import secrets
 from pathlib import Path
-from typing import Optional
 
 import streamlit as st
 
@@ -33,7 +33,7 @@ class AuthManager:
         """Load users from configuration file"""
         if self.users_file.exists():
             try:
-                with open(self.users_file, 'r') as f:
+                with open(self.users_file) as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"Failed to load users file: {e}")
@@ -48,7 +48,7 @@ class AuthManager:
         """Save users to configuration file"""
         try:
             self.users_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.users_file, 'w') as f:
+            with open(self.users_file, "w") as f:
                 json.dump(self.users, f, indent=2)
         except OSError as e:
             logger.error(f"Failed to save users: {e}")
@@ -134,7 +134,7 @@ class AuthManager:
         return True
 
 
-def require_authentication() -> Optional[str]:
+def require_authentication() -> str | None:
     """
     Check if user is authenticated, show login form if not
 
@@ -142,7 +142,7 @@ def require_authentication() -> Optional[str]:
         Username if authenticated, None otherwise
     """
     # Initialize session state
-    if 'authenticated' not in st.session_state:
+    if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = None
 
@@ -171,8 +171,10 @@ def require_authentication() -> Optional[str]:
                 st.error("Invalid username or password")
 
     st.markdown("---")
-    st.info("**Default credentials:**\n- Username: `admin`\n- Password: `admin123`\n\n"
-            "Change your password after first login in the Settings page.")
+    st.info(
+        "**Default credentials:**\n- Username: `admin`\n- Password: `admin123`\n\n"
+        "Change your password after first login in the Settings page."
+    )
 
     return None
 
@@ -186,7 +188,7 @@ def logout():
 
 def show_user_management():
     """Show user management interface (admin only)"""
-    if not st.session_state.get('authenticated', False):
+    if not st.session_state.get("authenticated", False):
         st.warning("You must be logged in to manage users")
         return
 
@@ -199,14 +201,18 @@ def show_user_management():
         with st.form("change_password_form"):
             old_password = st.text_input("Current Password", type="password", key="old_pw")
             new_password = st.text_input("New Password", type="password", key="new_pw")
-            confirm_password = st.text_input("Confirm New Password", type="password", key="confirm_pw")
+            confirm_password = st.text_input(
+                "Confirm New Password", type="password", key="confirm_pw"
+            )
 
             if st.form_submit_button("Change Password"):
                 if new_password != confirm_password:
                     st.error("New passwords do not match")
                 elif len(new_password) < 6:
                     st.error("Password must be at least 6 characters")
-                elif auth_manager.change_password(st.session_state.username, old_password, new_password):
+                elif auth_manager.change_password(
+                    st.session_state.username, old_password, new_password
+                ):
                     st.success("Password changed successfully!")
                 else:
                     st.error("Current password is incorrect")

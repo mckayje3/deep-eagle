@@ -1,8 +1,9 @@
 """Training loop implementation"""
+
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -10,6 +11,8 @@ import torch.nn as nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+from ..utils.checkpoint import safe_torch_load
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,7 @@ class Trainer:
         model: nn.Module,
         optimizer: Optimizer,
         criterion: nn.Module,
-        device: str = 'cpu',
+        device: str = "cpu",
         callbacks: list | None = None,
     ):
         self.model = model.to(device)
@@ -41,10 +44,10 @@ class Trainer:
         self.callbacks = callbacks or []
 
         self.history: dict[str, list] = {
-            'train_loss': [],
-            'val_loss': [],
-            'train_metrics': [],
-            'val_metrics': [],
+            "train_loss": [],
+            "val_loss": [],
+            "train_metrics": [],
+            "val_metrics": [],
         }
 
         self.current_epoch = 0
@@ -69,9 +72,9 @@ class Trainer:
         metric_values = {name: 0 for name in (metrics or {})}
         n_batches = 0
 
-        progress_bar = tqdm(train_loader, desc=f'Epoch {self.current_epoch + 1} [Train]')
+        progress_bar = tqdm(train_loader, desc=f"Epoch {self.current_epoch + 1} [Train]")
 
-        for batch_idx, (data, target) in enumerate(progress_bar):
+        for data, target in progress_bar:
             # Move to device
             data = data.to(self.device)
             target = target.to(self.device) if target is not None else None
@@ -97,15 +100,17 @@ class Trainer:
                         metric_values[name] += metric_fn(output, target).item()
 
             # Update progress bar
-            progress_bar.set_postfix({
-                'loss': total_loss / n_batches,
-                **{k: v / n_batches for k, v in metric_values.items()}
-            })
+            progress_bar.set_postfix(
+                {
+                    "loss": total_loss / n_batches,
+                    **{k: v / n_batches for k, v in metric_values.items()},
+                }
+            )
 
         # Calculate averages
         results = {
-            'loss': total_loss / n_batches,
-            **{k: v / n_batches for k, v in metric_values.items()}
+            "loss": total_loss / n_batches,
+            **{k: v / n_batches for k, v in metric_values.items()},
         }
 
         return results
@@ -130,10 +135,10 @@ class Trainer:
         metric_values = {name: 0 for name in (metrics or {})}
         n_batches = 0
 
-        progress_bar = tqdm(val_loader, desc=f'Epoch {self.current_epoch + 1} [Val]')
+        progress_bar = tqdm(val_loader, desc=f"Epoch {self.current_epoch + 1} [Val]")
 
         with torch.no_grad():
-            for batch_idx, (data, target) in enumerate(progress_bar):
+            for data, target in progress_bar:
                 # Move to device
                 data = data.to(self.device)
                 target = target.to(self.device) if target is not None else None
@@ -153,15 +158,17 @@ class Trainer:
                         metric_values[name] += metric_fn(output, target).item()
 
                 # Update progress bar
-                progress_bar.set_postfix({
-                    'loss': total_loss / n_batches,
-                    **{k: v / n_batches for k, v in metric_values.items()}
-                })
+                progress_bar.set_postfix(
+                    {
+                        "loss": total_loss / n_batches,
+                        **{k: v / n_batches for k, v in metric_values.items()},
+                    }
+                )
 
         # Calculate averages
         results = {
-            'loss': total_loss / n_batches,
-            **{k: v / n_batches for k, v in metric_values.items()}
+            "loss": total_loss / n_batches,
+            **{k: v / n_batches for k, v in metric_values.items()},
         }
 
         return results
@@ -192,36 +199,38 @@ class Trainer:
 
             # Call on_epoch_begin callbacks
             for callback in self.callbacks:
-                if hasattr(callback, 'on_epoch_begin'):
+                if hasattr(callback, "on_epoch_begin"):
                     callback.on_epoch_begin(epoch, self)
 
             # Train
             train_results = self.train_epoch(train_loader, metrics)
-            self.history['train_loss'].append(train_results['loss'])
+            self.history["train_loss"].append(train_results["loss"])
 
             if verbose:
                 logger.info(f"Epoch {epoch + 1}/{epochs}")
                 logger.info(f"  Train Loss: {train_results['loss']:.4f}")
                 for name, value in train_results.items():
-                    if name != 'loss':
+                    if name != "loss":
                         logger.info(f"  Train {name}: {value:.4f}")
 
             # Validate
             if val_loader is not None:
                 val_results = self.validate(val_loader, metrics)
-                self.history['val_loss'].append(val_results['loss'])
+                self.history["val_loss"].append(val_results["loss"])
 
                 if verbose:
                     logger.info(f"  Val Loss: {val_results['loss']:.4f}")
                     for name, value in val_results.items():
-                        if name != 'loss':
+                        if name != "loss":
                             logger.info(f"  Val {name}: {value:.4f}")
 
             # Call on_epoch_end callbacks
             stop_training = False
             for callback in self.callbacks:
-                if hasattr(callback, 'on_epoch_end'):
-                    if callback.on_epoch_end(epoch, self, train_results, val_results if val_loader else None):
+                if hasattr(callback, "on_epoch_end"):
+                    if callback.on_epoch_end(
+                        epoch, self, train_results, val_results if val_loader else None
+                    ):
                         stop_training = True
 
             if stop_training:
@@ -245,7 +254,7 @@ class Trainer:
         predictions = []
 
         with torch.no_grad():
-            for data, _ in tqdm(data_loader, desc='Predicting'):
+            for data, _ in tqdm(data_loader, desc="Predicting"):
                 data = data.to(self.device)
                 output = self.model(data)
                 predictions.append(output.cpu().numpy())
@@ -254,18 +263,21 @@ class Trainer:
 
     def save_checkpoint(self, path: str) -> None:
         """Save training checkpoint"""
-        torch.save({
-            'epoch': self.current_epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'history': self.history,
-        }, path)
+        torch.save(
+            {
+                "epoch": self.current_epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "history": self.history,
+            },
+            path,
+        )
 
     def load_checkpoint(self, path: str) -> None:
         """Load training checkpoint"""
-        # Use weights_only=True for security (prevents arbitrary code execution)
-        checkpoint = torch.load(path, weights_only=True)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.current_epoch = checkpoint['epoch']
-        self.history = checkpoint['history']
+        # weights_only=True for security; raises a clear error on legacy checkpoints
+        checkpoint = safe_torch_load(path, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.current_epoch = checkpoint["epoch"]
+        self.history = checkpoint["history"]

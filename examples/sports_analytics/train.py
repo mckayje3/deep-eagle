@@ -6,29 +6,29 @@ custom domain-specific features for sports analytics.
 """
 
 import sys
-sys.path.append('../..')
 
-import torch
-import torch.nn as nn
+sys.path.append("../..")
+
 import numpy as np
 import pandas as pd
-from torch.optim import Adam
-
-# Import from core framework
-from core import (
-    TimeSeriesDataset,
-    TimeSeriesDataLoader,
-    FeatureEngine,
-    GRUModel,
-    Trainer,
-    WalkForwardSplit,
-)
-from core.training import EarlyStopping, ModelCheckpoint
-from core.utils import set_seed, get_device, mse, mae
-from config.config_manager import Config, save_default_config
+import torch.nn as nn
 
 # Import custom features
 from custom_features import PlayerPerformanceFeatures, TeamStreakFeatures
+from torch.optim import Adam
+
+from config.config_manager import Config, save_default_config
+
+# Import from core framework
+from core import (
+    FeatureEngine,
+    GRUModel,
+    TimeSeriesDataLoader,
+    TimeSeriesDataset,
+    Trainer,
+)
+from core.training import EarlyStopping, ModelCheckpoint
+from core.utils import get_device, mae, set_seed
 
 
 def generate_synthetic_sports_data(n_games: int = 500) -> pd.DataFrame:
@@ -52,14 +52,16 @@ def generate_synthetic_sports_data(n_games: int = 500) -> pd.DataFrame:
     win_prob = (base_points + base_assists * 2 + base_rebounds) / 60
     wins = (np.random.random(n_games) < win_prob).astype(int)
 
-    df = pd.DataFrame({
-        'game_num': games,
-        'points': np.clip(base_points, 0, 50),
-        'assists': np.clip(base_assists, 0, 15),
-        'rebounds': np.clip(base_rebounds, 0, 20),
-        'minutes_played': np.clip(minutes_played, 10, 48),
-        'win': wins,
-    })
+    df = pd.DataFrame(
+        {
+            "game_num": games,
+            "points": np.clip(base_points, 0, 50),
+            "assists": np.clip(base_assists, 0, 15),
+            "rebounds": np.clip(base_rebounds, 0, 20),
+            "minutes_played": np.clip(minutes_played, 10, 48),
+            "win": wins,
+        }
+    )
 
     return df
 
@@ -79,12 +81,12 @@ def prepare_sports_features(data: pd.DataFrame, config: Config) -> tuple:
     # Create feature engine
     feature_engine = FeatureEngine(
         transformers=transformers,
-        scaler=config.get('features.scaler', 'standard'),
-        handle_missing=config.get('features.handle_missing', 'ffill'),
+        scaler=config.get("features.scaler", "standard"),
+        handle_missing=config.get("features.handle_missing", "ffill"),
     )
 
     # Split data temporally
-    train_size = int(len(data) * (1 - config.get('data.test_size', 0.2)))
+    train_size = int(len(data) * (1 - config.get("data.test_size", 0.2)))
     train_data = data.iloc[:train_size]
     test_data = data.iloc[train_size:]
 
@@ -97,8 +99,8 @@ def prepare_sports_features(data: pd.DataFrame, config: Config) -> tuple:
 
 def create_datasets(train_features, test_features, config: Config) -> tuple:
     """Create PyTorch datasets for sports prediction"""
-    sequence_length = config.get('data.sequence_length', 10)  # Last 10 games
-    forecast_horizon = config.get('data.forecast_horizon', 1)  # Predict next game
+    sequence_length = config.get("data.sequence_length", 10)  # Last 10 games
+    forecast_horizon = config.get("data.forecast_horizon", 1)  # Predict next game
 
     # Predict points scored (first feature after transformation)
     train_targets = train_features[:, 0]
@@ -128,15 +130,15 @@ def main():
 
     # Load or create config
     try:
-        config = Config.from_yaml('config.yaml')
+        config = Config.from_yaml("config.yaml")
     except FileNotFoundError:
-        save_default_config('config.yaml', format='yaml')
-        config = Config.from_yaml('config.yaml')
+        save_default_config("config.yaml", format="yaml")
+        config = Config.from_yaml("config.yaml")
 
     # Adjust config for sports analytics
-    config.set('data.sequence_length', 10)  # Look at last 10 games
-    config.set('model.type', 'gru')
-    config.set('model.hidden_dim', 32)
+    config.set("data.sequence_length", 10)  # Look at last 10 games
+    config.set("model.type", "gru")
+    config.set("model.hidden_dim", 32)
 
     print("=" * 50)
     print("Sports Performance Prediction - Training Pipeline")
@@ -161,33 +163,35 @@ def main():
     print(f"   Test samples: {len(test_dataset)}")
 
     # Create data loaders
-    batch_size = config.get('data.batch_size', 32)
+    batch_size = config.get("data.batch_size", 32)
     train_loader = TimeSeriesDataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     test_loader = TimeSeriesDataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Create model (using GRU for variety)
     print("\n4. Building GRU model...")
-    device = get_device() if config.get('training.device') == 'auto' else config.get('training.device')
+    device = (
+        get_device() if config.get("training.device") == "auto" else config.get("training.device")
+    )
     print(f"   Using device: {device}")
 
     model = GRUModel(
         input_dim=train_dataset.n_features,
-        hidden_dim=config.get('model.hidden_dim', 32),
-        output_dim=config.get('model.output_dim', 1),
-        num_layers=config.get('model.num_layers', 2),
-        dropout=config.get('model.dropout', 0.1),
-        forecast_horizon=config.get('data.forecast_horizon', 1),
+        hidden_dim=config.get("model.hidden_dim", 32),
+        output_dim=config.get("model.output_dim", 1),
+        num_layers=config.get("model.num_layers", 2),
+        dropout=config.get("model.dropout", 0.1),
+        forecast_horizon=config.get("data.forecast_horizon", 1),
     )
     print(f"   Model parameters: {model.count_parameters():,}")
 
     # Setup training
-    optimizer = Adam(model.parameters(), lr=config.get('training.learning_rate', 0.001))
+    optimizer = Adam(model.parameters(), lr=config.get("training.learning_rate", 0.001))
     criterion = nn.MSELoss()
 
     # Setup callbacks
     callbacks = [
         EarlyStopping(patience=15, verbose=True),
-        ModelCheckpoint(filepath='best_sports_model.pt', verbose=True),
+        ModelCheckpoint(filepath="best_sports_model.pt", verbose=True),
     ]
 
     # Create trainer
@@ -205,8 +209,8 @@ def main():
     history = trainer.fit(
         train_loader=train_loader,
         val_loader=test_loader,
-        epochs=config.get('training.epochs', 50),
-        metrics={'mae': mae},
+        epochs=config.get("training.epochs", 50),
+        metrics={"mae": mae},
     )
 
     print("\n" + "=" * 50)
@@ -220,5 +224,5 @@ def main():
     print("=" * 50)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

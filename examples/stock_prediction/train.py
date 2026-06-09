@@ -6,30 +6,30 @@ for stock price prediction with technical indicators.
 """
 
 import sys
-sys.path.append('../..')
 
-import torch
-import torch.nn as nn
+sys.path.append("../..")
+
 import numpy as np
 import pandas as pd
+import torch.nn as nn
 from torch.optim import Adam
+
+from config.config_manager import Config, save_default_config
 
 # Import from core framework
 from core import (
-    TimeSeriesDataset,
-    TimeSeriesDataLoader,
     FeatureEngine,
     LSTMModel,
+    TimeSeriesDataLoader,
+    TimeSeriesDataset,
     Trainer,
-    TimeSeriesSplit,
 )
-from core.features import TechnicalIndicators, LagFeatures, RollingWindow
+from core.features import LagFeatures, RollingWindow, TechnicalIndicators
 from core.training import EarlyStopping, ModelCheckpoint
-from core.utils import set_seed, get_device, mse, mae
-from config.config_manager import Config, save_default_config
+from core.utils import get_device, mae, set_seed
 
 
-def load_stock_data(filepath: str = 'stock_data.csv') -> pd.DataFrame:
+def load_stock_data(filepath: str = "stock_data.csv") -> pd.DataFrame:
     """
     Load stock data from CSV file
 
@@ -37,7 +37,7 @@ def load_stock_data(filepath: str = 'stock_data.csv') -> pd.DataFrame:
     """
     # In a real scenario, you would load actual stock data
     # For this example, we'll generate synthetic data
-    dates = pd.date_range('2020-01-01', '2023-12-31', freq='D')
+    dates = pd.date_range("2020-01-01", "2023-12-31", freq="D")
     np.random.seed(42)
 
     # Generate synthetic stock prices with trend and noise
@@ -45,14 +45,16 @@ def load_stock_data(filepath: str = 'stock_data.csv') -> pd.DataFrame:
     noise = np.random.normal(0, 10, len(dates))
     close_prices = trend + noise
 
-    df = pd.DataFrame({
-        'Date': dates,
-        'Close': close_prices,
-        'Volume': np.random.randint(1000000, 10000000, len(dates)),
-    })
+    df = pd.DataFrame(
+        {
+            "Date": dates,
+            "Close": close_prices,
+            "Volume": np.random.randint(1000000, 10000000, len(dates)),
+        }
+    )
 
-    df['Date'] = pd.to_datetime(df['Date'])
-    df = df.set_index('Date')
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.set_index("Date")
 
     return df
 
@@ -72,28 +74,32 @@ def prepare_features(data: pd.DataFrame, config: Config) -> tuple:
     transformers = []
 
     # Add technical indicators if enabled
-    if config.get('features.technical_indicators.enabled', False):
-        transformers.append(TechnicalIndicators(
-            include_rsi=config.get('features.technical_indicators.include_rsi', True),
-            include_macd=config.get('features.technical_indicators.include_macd', True),
-            include_bollinger=config.get('features.technical_indicators.include_bollinger', True),
-        ))
+    if config.get("features.technical_indicators.enabled", False):
+        transformers.append(
+            TechnicalIndicators(
+                include_rsi=config.get("features.technical_indicators.include_rsi", True),
+                include_macd=config.get("features.technical_indicators.include_macd", True),
+                include_bollinger=config.get(
+                    "features.technical_indicators.include_bollinger", True
+                ),
+            )
+        )
 
     # Add lag features
     transformers.append(LagFeatures(lags=[1, 2, 3, 5, 10]))
 
     # Add rolling window features
-    transformers.append(RollingWindow(windows=[5, 10, 20], functions=['mean', 'std']))
+    transformers.append(RollingWindow(windows=[5, 10, 20], functions=["mean", "std"]))
 
     # Create feature engine
     feature_engine = FeatureEngine(
         transformers=transformers,
-        scaler=config.get('features.scaler', 'standard'),
-        handle_missing=config.get('features.handle_missing', 'ffill'),
+        scaler=config.get("features.scaler", "standard"),
+        handle_missing=config.get("features.handle_missing", "ffill"),
     )
 
     # Split data temporally
-    train_size = int(len(data) * (1 - config.get('data.test_size', 0.2)))
+    train_size = int(len(data) * (1 - config.get("data.test_size", 0.2)))
     train_data = data.iloc[:train_size]
     test_data = data.iloc[train_size:]
 
@@ -116,8 +122,8 @@ def create_datasets(train_features, test_features, config: Config) -> tuple:
     Returns:
         Tuple of (train_dataset, test_dataset)
     """
-    sequence_length = config.get('data.sequence_length', 30)
-    forecast_horizon = config.get('data.forecast_horizon', 1)
+    sequence_length = config.get("data.sequence_length", 30)
+    forecast_horizon = config.get("data.forecast_horizon", 1)
 
     # Create target (predict close price - assume it's the first feature)
     train_targets = train_features[:, 0]
@@ -148,14 +154,14 @@ def main():
 
     # Generate default config if it doesn't exist
     try:
-        config = Config.from_yaml('config.yaml')
+        config = Config.from_yaml("config.yaml")
     except FileNotFoundError:
-        save_default_config('config.yaml', format='yaml')
-        config = Config.from_yaml('config.yaml')
+        save_default_config("config.yaml", format="yaml")
+        config = Config.from_yaml("config.yaml")
         print("Created default config.yaml - please review and adjust settings")
 
     # Enable technical indicators for stock prediction
-    config.set('features.technical_indicators.enabled', True)
+    config.set("features.technical_indicators.enabled", True)
 
     print("=" * 50)
     print("Stock Price Prediction - Training Pipeline")
@@ -178,41 +184,47 @@ def main():
     print(f"   Test samples: {len(test_dataset)}")
 
     # Create data loaders
-    batch_size = config.get('data.batch_size', 32)
+    batch_size = config.get("data.batch_size", 32)
     train_loader = TimeSeriesDataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     test_loader = TimeSeriesDataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Create model
     print("\n4. Building model...")
-    device = get_device() if config.get('training.device') == 'auto' else config.get('training.device')
+    device = (
+        get_device() if config.get("training.device") == "auto" else config.get("training.device")
+    )
     print(f"   Using device: {device}")
 
     model = LSTMModel(
         input_dim=train_dataset.n_features,
-        hidden_dim=config.get('model.hidden_dim', 64),
-        output_dim=config.get('model.output_dim', 1),
-        num_layers=config.get('model.num_layers', 2),
-        dropout=config.get('model.dropout', 0.1),
-        forecast_horizon=config.get('data.forecast_horizon', 1),
+        hidden_dim=config.get("model.hidden_dim", 64),
+        output_dim=config.get("model.output_dim", 1),
+        num_layers=config.get("model.num_layers", 2),
+        dropout=config.get("model.dropout", 0.1),
+        forecast_horizon=config.get("data.forecast_horizon", 1),
     )
     print(f"   Model parameters: {model.count_parameters():,}")
 
     # Setup training
-    optimizer = Adam(model.parameters(), lr=config.get('training.learning_rate', 0.001))
+    optimizer = Adam(model.parameters(), lr=config.get("training.learning_rate", 0.001))
     criterion = nn.MSELoss()
 
     # Setup callbacks
     callbacks = []
-    if config.get('training.early_stopping.enabled', True):
-        callbacks.append(EarlyStopping(
-            patience=config.get('training.early_stopping.patience', 10),
-            min_delta=config.get('training.early_stopping.min_delta', 0.0001),
-        ))
+    if config.get("training.early_stopping.enabled", True):
+        callbacks.append(
+            EarlyStopping(
+                patience=config.get("training.early_stopping.patience", 10),
+                min_delta=config.get("training.early_stopping.min_delta", 0.0001),
+            )
+        )
 
-    if config.get('training.checkpoint.enabled', True):
-        callbacks.append(ModelCheckpoint(
-            filepath=config.get('training.checkpoint.filepath', 'best_model.pt'),
-        ))
+    if config.get("training.checkpoint.enabled", True):
+        callbacks.append(
+            ModelCheckpoint(
+                filepath=config.get("training.checkpoint.filepath", "best_model.pt"),
+            )
+        )
 
     # Create trainer
     trainer = Trainer(
@@ -229,8 +241,8 @@ def main():
     history = trainer.fit(
         train_loader=train_loader,
         val_loader=test_loader,
-        epochs=config.get('training.epochs', 100),
-        metrics={'mae': mae},
+        epochs=config.get("training.epochs", 100),
+        metrics={"mae": mae},
     )
 
     print("\n" + "=" * 50)
@@ -239,5 +251,5 @@ def main():
     print("=" * 50)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

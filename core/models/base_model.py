@@ -1,4 +1,5 @@
 """Base model for time-series prediction"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -23,7 +24,7 @@ class BaseTimeSeriesModel(nn.Module, ABC):
         output_dim: int,
         num_layers: int = 1,
         dropout: float = 0.1,
-        **kwargs
+        **kwargs,
     ):
         """
         Args:
@@ -72,11 +73,11 @@ class BaseTimeSeriesModel(nn.Module, ABC):
     def get_config(self) -> dict[str, Any]:
         """Get model configuration"""
         return {
-            'input_dim': self.input_dim,
-            'hidden_dim': self.hidden_dim,
-            'output_dim': self.output_dim,
-            'num_layers': self.num_layers,
-            'dropout': self.dropout,
+            "input_dim": self.input_dim,
+            "hidden_dim": self.hidden_dim,
+            "output_dim": self.output_dim,
+            "num_layers": self.num_layers,
+            "dropout": self.dropout,
         }
 
     def count_parameters(self) -> int:
@@ -85,14 +86,19 @@ class BaseTimeSeriesModel(nn.Module, ABC):
 
     def save(self, path: str):
         """Save model weights"""
-        torch.save({
-            'state_dict': self.state_dict(),
-            'config': self.get_config(),
-        }, path)
+        torch.save(
+            {
+                "state_dict": self.state_dict(),
+                "config": self.get_config(),
+            },
+            path,
+        )
 
     def load(self, path: str):
         """Load model weights"""
-        # Use weights_only=True for security (prevents arbitrary code execution)
-        checkpoint = torch.load(path, weights_only=True)
-        self.load_state_dict(checkpoint['state_dict'])
-        return checkpoint.get('config', {})
+        # weights_only=True for security; raises a clear error on legacy checkpoints
+        from ..utils.checkpoint import safe_torch_load
+
+        checkpoint = safe_torch_load(path)
+        self.load_state_dict(checkpoint["state_dict"])
+        return checkpoint.get("config", {})

@@ -1,10 +1,9 @@
 """Prediction interface page"""
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
-from pathlib import Path
+import streamlit as st
 
 
 def show():
@@ -12,7 +11,7 @@ def show():
 
     st.header("🔮 Make Predictions")
 
-    if 'trained_model' not in st.session_state or st.session_state.trained_model is None:
+    if "trained_model" not in st.session_state or st.session_state.trained_model is None:
         st.warning("⚠️ No trained model available. Please train a model first.")
         return
 
@@ -20,8 +19,7 @@ def show():
 
     # Input method selection
     input_method = st.radio(
-        "Choose input method:",
-        ["Upload New Data", "Use Test Set", "Manual Input"]
+        "Choose input method:", ["Upload New Data", "Use Test Set", "Manual Input"]
     )
 
     predictions = None
@@ -30,8 +28,8 @@ def show():
     if input_method == "Upload New Data":
         uploaded_file = st.file_uploader(
             "Upload CSV file with features",
-            type=['csv'],
-            help="Upload a CSV file with the same features as training data"
+            type=["csv"],
+            help="Upload a CSV file with the same features as training data",
         )
 
         if uploaded_file is not None:
@@ -47,11 +45,11 @@ def show():
                 st.error(f"Error loading file: {e}")
 
     elif input_method == "Use Test Set":
-        if 'dataset' in st.session_state and st.session_state.dataset is not None:
+        if "dataset" in st.session_state and st.session_state.dataset is not None:
             df = st.session_state.dataset
-            config = st.session_state.get('model_config', {})
+            config = st.session_state.get("model_config", {})
 
-            test_size = config.get('data', {}).get('test_size', 0.2)
+            test_size = config.get("data", {}).get("test_size", 0.2)
             train_size = int(len(df) * (1 - test_size))
 
             input_data = df.iloc[train_size:]
@@ -68,31 +66,28 @@ def show():
     else:  # Manual Input
         st.markdown("### Enter Feature Values")
 
-        if 'model_config' in st.session_state:
+        if "model_config" in st.session_state:
             config = st.session_state.model_config
-            seq_len = config.get('data', {}).get('sequence_length', 30)
+            seq_len = config.get("data", {}).get("sequence_length", 30)
 
             st.info(f"📝 Model expects a sequence of {seq_len} time steps")
 
             num_features = st.number_input(
-                "Number of features:",
-                min_value=1,
-                max_value=20,
-                value=1
+                "Number of features:", min_value=1, max_value=20, value=1
             )
 
             # Create input fields
             manual_data = []
             for i in range(num_features):
-                col_name = st.text_input(f"Feature {i+1} name:", value=f"feature_{i+1}")
+                col_name = st.text_input(f"Feature {i + 1} name:", value=f"feature_{i + 1}")
                 values = st.text_area(
                     f"Enter {seq_len} values for {col_name} (comma-separated):",
-                    help="Enter comma-separated values"
+                    help="Enter comma-separated values",
                 )
 
                 if values:
                     try:
-                        vals = [float(x.strip()) for x in values.split(',')]
+                        vals = [float(x.strip()) for x in values.split(",")]
                         if len(vals) == seq_len:
                             manual_data.append(vals)
                         else:
@@ -123,20 +118,22 @@ def show():
         # Visualization
         fig = go.Figure()
 
-        fig.add_trace(go.Scatter(
-            y=predictions,
-            mode='lines+markers',
-            name='Predictions',
-            line=dict(color='purple', width=2),
-            marker=dict(size=6)
-        ))
+        fig.add_trace(
+            go.Scatter(
+                y=predictions,
+                mode="lines+markers",
+                name="Predictions",
+                line=dict(color="purple", width=2),
+                marker=dict(size=6),
+            )
+        )
 
         fig.update_layout(
             title="Prediction Values Over Time",
             xaxis_title="Time Step",
             yaxis_title="Predicted Value",
-            hovermode='x unified',
-            height=500
+            hovermode="x unified",
+            height=500,
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -144,61 +141,60 @@ def show():
         # Prediction table
         st.markdown("### Detailed Predictions")
 
-        pred_df = pd.DataFrame({
-            'Index': range(len(predictions)),
-            'Predicted Value': predictions
-        })
+        pred_df = pd.DataFrame({"Index": range(len(predictions)), "Predicted Value": predictions})
 
         st.dataframe(pred_df, use_container_width=True)
 
         # Download predictions
         csv = pred_df.to_csv(index=False)
         st.download_button(
-            label="📥 Download Predictions",
-            data=csv,
-            file_name="predictions.csv",
-            mime="text/csv"
+            label="📥 Download Predictions", data=csv, file_name="predictions.csv", mime="text/csv"
         )
 
         # Confidence intervals (simulated)
         st.markdown("---")
         st.subheader("📊 Confidence Intervals")
 
-        st.info("📝 Confidence intervals are estimated (in production, use proper uncertainty quantification)")
+        st.info(
+            "📝 Confidence intervals are estimated (in production, use proper uncertainty quantification)"
+        )
 
         lower_bound = predictions - np.random.uniform(0.1, 0.3, len(predictions))
         upper_bound = predictions + np.random.uniform(0.1, 0.3, len(predictions))
 
         fig_ci = go.Figure()
 
-        fig_ci.add_trace(go.Scatter(
-            y=predictions,
-            mode='lines+markers',
-            name='Predictions',
-            line=dict(color='purple')
-        ))
+        fig_ci.add_trace(
+            go.Scatter(
+                y=predictions, mode="lines+markers", name="Predictions", line=dict(color="purple")
+            )
+        )
 
-        fig_ci.add_trace(go.Scatter(
-            y=upper_bound,
-            mode='lines',
-            name='Upper Bound (95%)',
-            line=dict(color='lightblue', dash='dash')
-        ))
+        fig_ci.add_trace(
+            go.Scatter(
+                y=upper_bound,
+                mode="lines",
+                name="Upper Bound (95%)",
+                line=dict(color="lightblue", dash="dash"),
+            )
+        )
 
-        fig_ci.add_trace(go.Scatter(
-            y=lower_bound,
-            mode='lines',
-            name='Lower Bound (95%)',
-            line=dict(color='lightblue', dash='dash'),
-            fill='tonexty',
-            fillcolor='rgba(173, 216, 230, 0.2)'
-        ))
+        fig_ci.add_trace(
+            go.Scatter(
+                y=lower_bound,
+                mode="lines",
+                name="Lower Bound (95%)",
+                line=dict(color="lightblue", dash="dash"),
+                fill="tonexty",
+                fillcolor="rgba(173, 216, 230, 0.2)",
+            )
+        )
 
         fig_ci.update_layout(
             title="Predictions with Confidence Intervals",
             xaxis_title="Time Step",
             yaxis_title="Value",
-            height=500
+            height=500,
         )
 
         st.plotly_chart(fig_ci, use_container_width=True)

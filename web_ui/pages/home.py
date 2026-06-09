@@ -1,6 +1,7 @@
 """Home page for Deep-TimeSeries Dashboard"""
 
 import streamlit as st
+
 from core import get_usage_stats
 
 
@@ -96,9 +97,10 @@ def show():
         stats = get_usage_stats()
         if stats:
             import pandas as pd
+
             df = pd.DataFrame(
                 [(k, v) for k, v in sorted(stats.items(), key=lambda x: -x[1])],
-                columns=["Feature", "Uses"]
+                columns=["Feature", "Uses"],
             )
             st.dataframe(df, use_container_width=True)
         else:

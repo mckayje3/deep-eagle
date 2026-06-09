@@ -1,7 +1,6 @@
 """LSTM model for time-series prediction"""
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 import torch
 import torch.nn as nn
@@ -58,7 +57,7 @@ class LSTMModel(BaseTimeSeriesModel):
         # Output layer
         self.fc = nn.Linear(hidden_dim * self.num_directions, output_dim * forecast_horizon)
 
-    def forward(self, x: torch.Tensor, hidden: Optional[tuple] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, hidden: tuple | None = None) -> torch.Tensor:
         """
         Forward pass
 
@@ -92,8 +91,10 @@ class LSTMModel(BaseTimeSeriesModel):
     def get_config(self):
         """Get model configuration"""
         config = super().get_config()
-        config.update({
-            'bidirectional': self.bidirectional,
-            'forecast_horizon': self.forecast_horizon,
-        })
+        config.update(
+            {
+                "bidirectional": self.bidirectional,
+                "forecast_horizon": self.forecast_horizon,
+            }
+        )
         return config

@@ -2,6 +2,7 @@
 Deep Learning Framework for Time-Series Analysis
 Core module providing shared functionality across projects
 """
+
 from __future__ import annotations
 
 import json
@@ -11,30 +12,30 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-__version__ = "0.1.0"
-
-logger = logging.getLogger(__name__)
-
-from .data import TimeSeriesDataset, TimeSeriesDataLoader
+from .data import TimeSeriesDataLoader, TimeSeriesDataset
 from .features import FeatureEngine
 from .models import (
-    LSTMModel,
-    GRUModel,
-    TransformerModel,
-    EnsembleModel,
-    VotingEnsemble,
     BootstrapEnsemble,
+    EnsembleModel,
+    GRUModel,
+    LSTMModel,
+    TransformerModel,
+    VotingEnsemble,
     create_diverse_ensemble,
     optimize_ensemble_weights,
 )
 from .training import Trainer
-from .validation import TimeSeriesSplit, WalkForwardSplit
 from .utils import (
     FeatureImportance,
+    SHAPExplainer,
     calculate_all_importances,
     plot_feature_importance,
-    SHAPExplainer,
 )
+from .validation import TimeSeriesSplit, WalkForwardSplit
+
+__version__ = "0.1.0"
+
+logger = logging.getLogger(__name__)
 
 
 # Usage Analytics
@@ -51,9 +52,9 @@ class UsageTracker:
         """Load existing stats from disk"""
         if self.stats_file.exists():
             try:
-                with open(self.stats_file, 'r') as f:
+                with open(self.stats_file) as f:
                     data = json.load(f)
-                    self.stats = Counter(data.get('features', {}))
+                    self.stats = Counter(data.get("features", {}))
             except (json.JSONDecodeError, OSError) as e:
                 logger.debug(f"Could not load usage stats: {e}")
 
@@ -64,11 +65,12 @@ class UsageTracker:
 
         try:
             self.stats_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.stats_file, 'w') as f:
-                json.dump({
-                    'features': dict(self.stats),
-                    'last_updated': datetime.now().isoformat()
-                }, f, indent=2)
+            with open(self.stats_file, "w") as f:
+                json.dump(
+                    {"features": dict(self.stats), "last_updated": datetime.now().isoformat()},
+                    f,
+                    indent=2,
+                )
         except OSError as e:
             logger.debug(f"Could not save usage stats: {e}")
 
@@ -104,6 +106,7 @@ def get_usage_stats() -> dict[str, int]:
 def clear_usage_stats() -> None:
     """Clear all usage statistics"""
     _tracker.clear_stats()
+
 
 __all__ = [
     # Data

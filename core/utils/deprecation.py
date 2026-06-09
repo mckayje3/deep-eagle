@@ -1,15 +1,16 @@
 """Deprecation warnings and version compatibility utilities"""
 
-import warnings
 import functools
-from typing import Optional, Callable, Any
+import warnings
+from collections.abc import Callable
+from typing import Any
 
 
 def deprecate(
     message: str,
-    removal_version: Optional[str] = None,
+    removal_version: str | None = None,
     category: type = DeprecationWarning,
-    stacklevel: int = 2
+    stacklevel: int = 2,
 ):
     """
     Issue a deprecation warning.
@@ -32,9 +33,7 @@ def deprecate(
 
 
 def deprecated(
-    reason: str,
-    replacement: Optional[str] = None,
-    removal_version: Optional[str] = None
+    reason: str, replacement: str | None = None, removal_version: str | None = None
 ) -> Callable:
     """
     Decorator to mark functions/classes as deprecated.
@@ -49,6 +48,7 @@ def deprecated(
         ... def old_function():
         ...     pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -62,13 +62,12 @@ def deprecated(
             return func(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
 def deprecated_argument(
-    old_name: str,
-    new_name: Optional[str] = None,
-    removal_version: Optional[str] = None
+    old_name: str, new_name: str | None = None, removal_version: str | None = None
 ):
     """
     Decorator to mark function arguments as deprecated.
@@ -85,6 +84,7 @@ def deprecated_argument(
         ...         new_param = old_param
         ...     return new_param
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -104,6 +104,7 @@ def deprecated_argument(
             return func(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
@@ -116,8 +117,9 @@ class DeprecatedClass:
         ...     _deprecation_message = "Use NewModel instead"
         ...     _removal_version = "0.3.0"
     """
+
     _deprecation_message: str = "This class is deprecated"
-    _removal_version: Optional[str] = None
+    _removal_version: str | None = None
 
     def __init__(self, *args, **kwargs):
         message = self._deprecation_message
@@ -128,7 +130,7 @@ class DeprecatedClass:
         super().__init__(*args, **kwargs)
 
 
-def warn_on_import(message: str, removal_version: Optional[str] = None):
+def warn_on_import(message: str, removal_version: str | None = None):
     """
     Show a warning when a module is imported.
 

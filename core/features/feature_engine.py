@@ -1,9 +1,8 @@
 """Feature engineering pipeline"""
 
-import pandas as pd
 import numpy as np
-from typing import List, Optional, Union
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 
 class FeatureEngine:
@@ -18,9 +17,9 @@ class FeatureEngine:
 
     def __init__(
         self,
-        transformers: Optional[List] = None,
-        scaler: Optional[str] = 'standard',
-        handle_missing: str = 'ffill',
+        transformers: list | None = None,
+        scaler: str | None = "standard",
+        handle_missing: str = "ffill",
     ):
         self.transformers = transformers or []
         self.scaler_type = scaler
@@ -30,29 +29,29 @@ class FeatureEngine:
         self.feature_names = None
 
         # Initialize scaler
-        if scaler == 'standard':
+        if scaler == "standard":
             self.scaler = StandardScaler()
-        elif scaler == 'minmax':
+        elif scaler == "minmax":
             self.scaler = MinMaxScaler()
-        elif scaler == 'robust':
+        elif scaler == "robust":
             self.scaler = RobustScaler()
         elif scaler is not None:
             raise ValueError(f"Unknown scaler type: {scaler}")
 
     def _handle_missing_values(self, data: pd.DataFrame) -> pd.DataFrame:
         """Handle missing values according to strategy"""
-        if self.handle_missing == 'ffill':
+        if self.handle_missing == "ffill":
             return data.ffill().bfill()
-        elif self.handle_missing == 'bfill':
+        elif self.handle_missing == "bfill":
             return data.bfill().ffill()
-        elif self.handle_missing == 'drop':
+        elif self.handle_missing == "drop":
             return data.dropna()
-        elif self.handle_missing == 'zero':
+        elif self.handle_missing == "zero":
             return data.fillna(0)
         else:
             raise ValueError(f"Unknown missing value strategy: {self.handle_missing}")
 
-    def fit(self, data: Union[np.ndarray, pd.DataFrame]) -> 'FeatureEngine':
+    def fit(self, data: np.ndarray | pd.DataFrame) -> "FeatureEngine":
         """
         Fit the feature engineering pipeline
 
@@ -68,9 +67,13 @@ class FeatureEngine:
         # Apply transformers
         transformed = data.copy()
         for transformer in self.transformers:
-            if hasattr(transformer, 'fit'):
+            if hasattr(transformer, "fit"):
                 transformer.fit(transformed)
-            transformed = transformer.transform(transformed) if hasattr(transformer, 'transform') else transformed
+            transformed = (
+                transformer.transform(transformed)
+                if hasattr(transformer, "transform")
+                else transformed
+            )
 
         # Handle missing values
         transformed = self._handle_missing_values(transformed)
@@ -85,7 +88,7 @@ class FeatureEngine:
         self.fitted = True
         return self
 
-    def transform(self, data: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    def transform(self, data: np.ndarray | pd.DataFrame) -> np.ndarray:
         """
         Transform data using fitted pipeline
 
@@ -104,7 +107,11 @@ class FeatureEngine:
         # Apply transformers
         transformed = data.copy()
         for transformer in self.transformers:
-            transformed = transformer.transform(transformed) if hasattr(transformer, 'transform') else transformed
+            transformed = (
+                transformer.transform(transformed)
+                if hasattr(transformer, "transform")
+                else transformed
+            )
 
         # Handle missing values
         transformed = self._handle_missing_values(transformed)
@@ -125,7 +132,7 @@ class FeatureEngine:
 
         return transformed.values
 
-    def fit_transform(self, data: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    def fit_transform(self, data: np.ndarray | pd.DataFrame) -> np.ndarray:
         """
         Fit and transform data in one step
 
@@ -141,9 +148,9 @@ class FeatureEngine:
         # Apply transformers
         transformed = data.copy()
         for transformer in self.transformers:
-            if hasattr(transformer, 'fit_transform'):
+            if hasattr(transformer, "fit_transform"):
                 transformed = transformer.fit_transform(transformed)
-            elif hasattr(transformer, 'transform'):
+            elif hasattr(transformer, "transform"):
                 transformed = transformer.transform(transformed)
 
         # Handle missing values
@@ -175,13 +182,13 @@ class FeatureEngine:
             return self.scaler.inverse_transform(data)
         return data
 
-    def get_feature_names(self) -> List[str]:
+    def get_feature_names(self) -> list[str]:
         """Get feature names after transformation"""
         if self.feature_names is None:
             raise RuntimeError("FeatureEngine must be fitted first")
         return self.feature_names
 
-    def add_transformer(self, transformer) -> 'FeatureEngine':
+    def add_transformer(self, transformer) -> "FeatureEngine":
         """Add a transformer to the pipeline"""
         self.transformers.append(transformer)
         self.fitted = False  # Need to refit

@@ -1,11 +1,12 @@
 """Dataset upload and management page"""
 
-import streamlit as st
-import pandas as pd
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
+import streamlit as st
 
 
 def show():
@@ -14,29 +15,28 @@ def show():
     st.header("📊 Dataset Manager")
 
     # Session state initialization
-    if 'dataset' not in st.session_state:
+    if "dataset" not in st.session_state:
         st.session_state.dataset = None
-    if 'dataset_name' not in st.session_state:
+    if "dataset_name" not in st.session_state:
         st.session_state.dataset_name = None
 
     # File upload section
     st.subheader("Upload Dataset")
 
     upload_method = st.radio(
-        "Choose upload method:",
-        ["Upload File", "Load Example", "Load from Path"]
+        "Choose upload method:", ["Upload File", "Load Example", "Load from Path"]
     )
 
     if upload_method == "Upload File":
         uploaded_file = st.file_uploader(
             "Choose a CSV or Excel file",
-            type=['csv', 'xlsx', 'xls'],
-            help="Upload your time-series data file"
+            type=["csv", "xlsx", "xls"],
+            help="Upload your time-series data file",
         )
 
         if uploaded_file is not None:
             try:
-                if uploaded_file.name.endswith('.csv'):
+                if uploaded_file.name.endswith(".csv"):
                     df = pd.read_csv(uploaded_file)
                 else:
                     df = pd.read_excel(uploaded_file)
@@ -50,29 +50,36 @@ def show():
 
     elif upload_method == "Load Example":
         example = st.selectbox(
-            "Select example dataset:",
-            ["Synthetic Stock Data", "Synthetic Sensor Data"]
+            "Select example dataset:", ["Synthetic Stock Data", "Synthetic Sensor Data"]
         )
 
         if st.button("Load Example"):
             if example == "Synthetic Stock Data":
-                dates = pd.date_range('2020-01-01', '2023-12-31', freq='D')
+                dates = pd.date_range("2020-01-01", "2023-12-31", freq="D")
                 np.random.seed(42)
                 trend = np.linspace(100, 200, len(dates))
                 noise = np.random.normal(0, 10, len(dates))
-                df = pd.DataFrame({
-                    'Date': dates,
-                    'Close': trend + noise,
-                    'Volume': np.random.randint(1000000, 10000000, len(dates)),
-                })
+                df = pd.DataFrame(
+                    {
+                        "Date": dates,
+                        "Close": trend + noise,
+                        "Volume": np.random.randint(1000000, 10000000, len(dates)),
+                    }
+                )
             else:
-                dates = pd.date_range('2023-01-01', '2023-12-31', freq='H')
+                dates = pd.date_range("2023-01-01", "2023-12-31", freq="H")
                 np.random.seed(42)
-                df = pd.DataFrame({
-                    'Timestamp': dates,
-                    'Temperature': 20 + 5 * np.sin(np.arange(len(dates)) * 2 * np.pi / 24) + np.random.normal(0, 2, len(dates)),
-                    'Humidity': 50 + 10 * np.cos(np.arange(len(dates)) * 2 * np.pi / 24) + np.random.normal(0, 5, len(dates)),
-                })
+                df = pd.DataFrame(
+                    {
+                        "Timestamp": dates,
+                        "Temperature": 20
+                        + 5 * np.sin(np.arange(len(dates)) * 2 * np.pi / 24)
+                        + np.random.normal(0, 2, len(dates)),
+                        "Humidity": 50
+                        + 10 * np.cos(np.arange(len(dates)) * 2 * np.pi / 24)
+                        + np.random.normal(0, 5, len(dates)),
+                    }
+                )
 
             st.session_state.dataset = df
             st.session_state.dataset_name = example
@@ -83,7 +90,7 @@ def show():
         if st.button("Load") and file_path:
             try:
                 path = Path(file_path)
-                if path.suffix == '.csv':
+                if path.suffix == ".csv":
                     df = pd.read_csv(path)
                 else:
                     df = pd.read_excel(path)
@@ -127,7 +134,7 @@ def show():
         st.subheader("Data Visualization")
 
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        date_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+        date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
 
         # Try to auto-detect date column
         if not date_cols:
@@ -143,14 +150,16 @@ def show():
             col1, col2 = st.columns(2)
 
             with col1:
-                x_col = st.selectbox("X-axis (time/index):", date_cols + ['Index'] if date_cols else ['Index'])
+                x_col = st.selectbox(
+                    "X-axis (time/index):", date_cols + ["Index"] if date_cols else ["Index"]
+                )
                 y_cols = st.multiselect("Y-axis (values):", numeric_cols, default=numeric_cols[:1])
 
             with col2:
                 chart_type = st.selectbox("Chart Type:", ["Line", "Scatter", "Histogram", "Box"])
 
             if y_cols:
-                if x_col == 'Index':
+                if x_col == "Index":
                     x_data = df.index
                 else:
                     x_data = df[x_col]
@@ -158,12 +167,12 @@ def show():
                 if chart_type == "Line":
                     fig = go.Figure()
                     for col in y_cols:
-                        fig.add_trace(go.Scatter(x=x_data, y=df[col], mode='lines', name=col))
+                        fig.add_trace(go.Scatter(x=x_data, y=df[col], mode="lines", name=col))
                     fig.update_layout(
                         title="Time Series Plot",
                         xaxis_title=x_col,
                         yaxis_title="Value",
-                        hovermode='x unified'
+                        hovermode="x unified",
                     )
 
                 elif chart_type == "Scatter":
@@ -176,7 +185,7 @@ def show():
                     fig = go.Figure()
                     for col in y_cols:
                         fig.add_trace(go.Histogram(x=df[col], name=col, opacity=0.7))
-                    fig.update_layout(title="Distribution", barmode='overlay')
+                    fig.update_layout(title="Distribution", barmode="overlay")
 
                 else:  # Box
                     fig = go.Figure()
@@ -190,17 +199,23 @@ def show():
         if df.isnull().sum().sum() > 0:
             st.subheader("Missing Values Analysis")
 
-            missing_df = pd.DataFrame({
-                'Column': df.columns,
-                'Missing Count': df.isnull().sum().values,
-                'Missing %': (df.isnull().sum().values / len(df) * 100).round(2)
-            })
-            missing_df = missing_df[missing_df['Missing Count'] > 0].sort_values('Missing Count', ascending=False)
+            missing_df = pd.DataFrame(
+                {
+                    "Column": df.columns,
+                    "Missing Count": df.isnull().sum().values,
+                    "Missing %": (df.isnull().sum().values / len(df) * 100).round(2),
+                }
+            )
+            missing_df = missing_df[missing_df["Missing Count"] > 0].sort_values(
+                "Missing Count", ascending=False
+            )
 
             col1, col2 = st.columns([2, 1])
 
             with col1:
-                fig = px.bar(missing_df, x='Column', y='Missing Count', title="Missing Values by Column")
+                fig = px.bar(
+                    missing_df, x="Column", y="Missing Count", title="Missing Values by Column"
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
@@ -210,14 +225,21 @@ def show():
             st.subheader("Handle Missing Values")
             method = st.selectbox(
                 "Select method:",
-                ["None", "Forward Fill", "Backward Fill", "Drop Rows", "Fill with Zero", "Fill with Mean"]
+                [
+                    "None",
+                    "Forward Fill",
+                    "Backward Fill",
+                    "Drop Rows",
+                    "Fill with Zero",
+                    "Fill with Mean",
+                ],
             )
 
             if method != "None" and st.button("Apply"):
                 if method == "Forward Fill":
-                    st.session_state.dataset = df.fillna(method='ffill')
+                    st.session_state.dataset = df.fillna(method="ffill")
                 elif method == "Backward Fill":
-                    st.session_state.dataset = df.fillna(method='bfill')
+                    st.session_state.dataset = df.fillna(method="bfill")
                 elif method == "Drop Rows":
                     st.session_state.dataset = df.dropna()
                 elif method == "Fill with Zero":
@@ -241,8 +263,5 @@ def show():
         with col2:
             csv = df.to_csv(index=False)
             st.download_button(
-                label="Download as CSV",
-                data=csv,
-                file_name="processed_data.csv",
-                mime="text/csv"
+                label="Download as CSV", data=csv, file_name="processed_data.csv", mime="text/csv"
             )
