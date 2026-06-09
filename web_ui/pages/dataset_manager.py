@@ -1,5 +1,6 @@
 """Dataset upload and management page"""
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,36 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+
+def _data_root() -> Path:
+    """Allowlisted directory that path-based loads are confined to."""
+    default = Path(__file__).resolve().parent.parent.parent / "data"
+    return Path(os.environ.get("DEEP_EAGLE_DATA_DIR", default)).resolve()
+
+
+def _resolve_within_data_root(file_path: str) -> Path:
+    """
+    Resolve a user-supplied path and ensure it stays inside the data root.
+
+    Prevents an authenticated user from reading arbitrary files on the host
+    (e.g. ``../.streamlit/secrets.toml``) via the "Load from Path" box.
+
+    Raises:
+        ValueError: If the resolved path escapes the data root.
+    """
+    root = _data_root()
+    resolved = (
+        (root / file_path).resolve()
+        if not Path(file_path).is_absolute()
+        else Path(file_path).resolve()
+    )
+    if not resolved.is_relative_to(root):
+        raise ValueError(
+            f"Path must be inside the allowed data directory ({root}). "
+            "Set DEEP_EAGLE_DATA_DIR to change it."
+        )
+    return resolved
 
 
 def show():
@@ -86,10 +117,11 @@ def show():
             st.success(f"✅ Loaded {example}!")
 
     else:  # Load from Path
-        file_path = st.text_input("Enter file path:")
+        st.caption(f"Files are read from the data directory: `{_data_root()}`")
+        file_path = st.text_input("Enter file path (relative to the data directory):")
         if st.button("Load") and file_path:
             try:
-                path = Path(file_path)
+                path = _resolve_within_data_root(file_path)
                 if path.suffix == ".csv":
                     df = pd.read_csv(path)
                 else:
@@ -99,6 +131,8 @@ def show():
                 st.session_state.dataset_name = path.name
                 st.success(f"✅ Loaded {path.name} successfully!")
 
+            except ValueError as e:
+                st.error(str(e))
             except Exception as e:
                 st.error(f"Error loading file: {e}")
 

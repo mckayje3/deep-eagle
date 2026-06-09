@@ -130,8 +130,8 @@ def show():
     with col2:
         settings["detailed_errors"] = st.checkbox(
             "Show detailed errors",
-            value=settings.get("detailed_errors", True),
-            help="Display full error tracebacks",
+            value=settings.get("detailed_errors", False),
+            help="Display full error tracebacks (leave off for deployed apps)",
         )
 
     settings["max_data_preview"] = st.slider(
@@ -171,10 +171,20 @@ def show():
         if uploaded_settings is not None:
             try:
                 loaded_settings = json.load(uploaded_settings)
-                st.session_state.app_settings = loaded_settings
+                if not isinstance(loaded_settings, dict):
+                    raise ValueError("Settings file must contain a JSON object")
+                # Schema enforcement: only merge keys we already recognise,
+                # so an uploaded file can't inject arbitrary structure.
+                known_keys = set(settings.keys())
+                applied = {k: v for k, v in loaded_settings.items() if k in known_keys}
+                ignored = set(loaded_settings) - known_keys
+                settings.update(applied)
+                st.session_state.app_settings = settings
+                if ignored:
+                    st.warning(f"Ignored unknown settings keys: {', '.join(sorted(ignored))}")
                 st.success("✅ Settings imported!")
                 st.rerun()
-            except Exception as e:
+            except (ValueError, json.JSONDecodeError) as e:
                 st.error(f"Error importing settings: {e}")
 
     st.markdown("---")

@@ -1,12 +1,36 @@
 """Project scanner integration page"""
 
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
+
+def _validate_scan_path(project_path: str) -> Path:
+    """
+    Validate a user-supplied project path before handing it to the scanner.
+
+    Confirms the path exists and is a directory. If DEEP_EAGLE_SCAN_ROOT is set,
+    the path is additionally confined to that root (opt-in allowlist).
+
+    Raises:
+        ValueError: If the path is missing, not a directory, or escapes the root.
+    """
+    resolved = Path(project_path).expanduser().resolve()
+    if not resolved.is_dir():
+        raise ValueError(f"Not a directory: {resolved}")
+
+    root_env = os.environ.get("DEEP_EAGLE_SCAN_ROOT")
+    if root_env:
+        root = Path(root_env).expanduser().resolve()
+        if not resolved.is_relative_to(root):
+            raise ValueError(f"Path must be inside the allowed scan root ({root}).")
+    return resolved
 
 
 def show():
@@ -100,8 +124,13 @@ def run_scanner(project_path, check_version=False):
     """Run the project scanner tool"""
 
     try:
-        # Build command
-        cmd = ["python", "tools/scan_usage.py", project_path, "--format", "json"]
+        # Validate the user-supplied path before passing it to the scanner
+        safe_path = _validate_scan_path(project_path)
+
+        # Build command. Use sys.executable (not bare "python") and resolve the
+        # scanner script relative to the repo root so cwd doesn't matter.
+        scanner = Path(__file__).resolve().parent.parent.parent / "tools" / "scan_usage.py"
+        cmd = [sys.executable, str(scanner), str(safe_path), "--format", "json"]
 
         if check_version:
             cmd.append("--version")
