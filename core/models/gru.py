@@ -1,9 +1,12 @@
 """GRU model for time-series prediction"""
+from __future__ import annotations
+
+from typing import Optional
 
 import torch
 import torch.nn as nn
+
 from .base_model import BaseTimeSeriesModel
-from typing import Optional
 
 
 class GRUModel(BaseTimeSeriesModel):
@@ -31,6 +34,9 @@ class GRUModel(BaseTimeSeriesModel):
         forecast_horizon: int = 1,
     ):
         super().__init__(input_dim, hidden_dim, output_dim, num_layers, dropout)
+
+        if forecast_horizon <= 0:
+            raise ValueError(f"forecast_horizon must be positive, got {forecast_horizon}")
 
         self.bidirectional = bidirectional
         self.forecast_horizon = forecast_horizon

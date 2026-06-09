@@ -1,8 +1,11 @@
 """Transformer model for time-series prediction"""
+from __future__ import annotations
+
+import math
 
 import torch
 import torch.nn as nn
-import math
+
 from .base_model import BaseTimeSeriesModel
 
 
@@ -60,6 +63,15 @@ class TransformerModel(BaseTimeSeriesModel):
         forecast_horizon: int = 1,
     ):
         super().__init__(input_dim, hidden_dim, output_dim, num_layers, dropout)
+
+        if num_heads <= 0:
+            raise ValueError(f"num_heads must be positive, got {num_heads}")
+        if hidden_dim % num_heads != 0:
+            raise ValueError(f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})")
+        if dim_feedforward <= 0:
+            raise ValueError(f"dim_feedforward must be positive, got {dim_feedforward}")
+        if forecast_horizon <= 0:
+            raise ValueError(f"forecast_horizon must be positive, got {forecast_horizon}")
 
         self.num_heads = num_heads
         self.dim_feedforward = dim_feedforward

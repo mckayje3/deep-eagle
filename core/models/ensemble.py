@@ -2,14 +2,18 @@
 Ensemble methods for combining multiple models
 Provides significant accuracy improvements for predictions
 """
+from __future__ import annotations
 
+import logging
+from typing import Callable
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-from typing import List, Optional, Dict, Union, Callable
-from pathlib import Path
 
 from .base_model import BaseTimeSeriesModel
+
+logger = logging.getLogger(__name__)
 
 
 class EnsembleModel(nn.Module):
@@ -30,9 +34,9 @@ class EnsembleModel(nn.Module):
 
     def __init__(
         self,
-        models: List[nn.Module],
+        models: list[nn.Module],
         method: str = 'average',
-        weights: Optional[List[float]] = None,
+        weights: list[float] | None = None,
     ):
         super().__init__()
 
@@ -118,14 +122,14 @@ class EnsembleModel(nn.Module):
             return normalized.detach().cpu().numpy()
         return np.ones(self.n_models) / self.n_models
 
-    def set_weights(self, weights: List[float]):
+    def set_weights(self, weights: list[float]) -> None:
         """Set ensemble weights manually"""
         if not hasattr(self, 'weights'):
             raise ValueError("Cannot set weights for 'average' or 'stacking' methods")
         with torch.no_grad():
             self.weights.copy_(torch.tensor(weights, dtype=torch.float32))
 
-    def get_individual_predictions(self, x: torch.Tensor) -> List[torch.Tensor]:
+    def get_individual_predictions(self, x: torch.Tensor) -> list[torch.Tensor]:
         """Get predictions from each individual model"""
         predictions = []
         with torch.no_grad():
@@ -148,7 +152,7 @@ class VotingEnsemble(nn.Module):
 
     def __init__(
         self,
-        models: List[nn.Module],
+        models: list[nn.Module],
         voting: str = 'soft',
     ):
         super().__init__()
@@ -204,7 +208,7 @@ class BootstrapEnsemble:
     def __init__(
         self,
         model_class: type,
-        model_kwargs: Dict,
+        model_kwargs: dict,
         n_estimators: int = 5,
         sample_ratio: float = 0.8,
     ):
@@ -219,10 +223,10 @@ class BootstrapEnsemble:
         self,
         train_loader,
         trainer_class,
-        trainer_kwargs: Dict,
+        trainer_kwargs: dict,
         epochs: int = 100,
         verbose: bool = True,
-    ) -> 'BootstrapEnsemble':
+    ) -> BootstrapEnsemble:
         """
         Train ensemble with bootstrap samples
 
@@ -241,9 +245,9 @@ class BootstrapEnsemble:
 
         for i in range(self.n_estimators):
             if verbose:
-                print(f"\n{'='*50}")
-                print(f"Training model {i+1}/{self.n_estimators}")
-                print(f"{'='*50}")
+                logger.info("=" * 50)
+                logger.info(f"Training model {i+1}/{self.n_estimators}")
+                logger.info("=" * 50)
 
             # Create bootstrap sample
             indices = np.random.choice(n_samples, size=sample_size, replace=True)
@@ -283,12 +287,12 @@ class BootstrapEnsemble:
 
 def create_diverse_ensemble(
     input_dim: int,
-    hidden_dims: List[int] = [64, 128, 256],
-    model_types: List[str] = ['lstm', 'gru'],
+    hidden_dims: list[int] | None = None,
+    model_types: list[str] | None = None,
     output_dim: int = 1,
     num_layers: int = 2,
     dropout: float = 0.2,
-) -> List[nn.Module]:
+) -> list[nn.Module]:
     """
     Create a diverse ensemble with different architectures
 
@@ -308,6 +312,11 @@ def create_diverse_ensemble(
     from .lstm import LSTMModel
     from .gru import GRUModel
     from .transformer import TransformerModel
+
+    if hidden_dims is None:
+        hidden_dims = [64, 128, 256]
+    if model_types is None:
+        model_types = ['lstm', 'gru']
 
     MODEL_CLASSES = {
         'lstm': LSTMModel,
@@ -390,6 +399,6 @@ def optimize_ensemble_weights(
         if (iteration + 1) % 20 == 0:
             avg_loss = total_loss / n_batches
             weights = ensemble.get_weights()
-            print(f"Iteration {iteration+1}: Loss={avg_loss:.4f}, Weights={weights}")
+            logger.info(f"Iteration {iteration+1}: Loss={avg_loss:.4f}, Weights={weights}")
 
     return ensemble

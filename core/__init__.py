@@ -2,14 +2,18 @@
 Deep Learning Framework for Time-Series Analysis
 Core module providing shared functionality across projects
 """
+from __future__ import annotations
+
+import json
+import logging
+import os
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
 
 __version__ = "0.1.0"
 
-import os
-import json
-from pathlib import Path
-from collections import Counter
-from datetime import datetime
+logger = logging.getLogger(__name__)
 
 from .data import TimeSeriesDataset, TimeSeriesDataLoader
 from .features import FeatureEngine
@@ -43,17 +47,17 @@ class UsageTracker:
         self.stats_file = Path.home() / ".deep-timeseries" / "usage_stats.json"
         self._load_stats()
 
-    def _load_stats(self):
+    def _load_stats(self) -> None:
         """Load existing stats from disk"""
         if self.stats_file.exists():
             try:
                 with open(self.stats_file, 'r') as f:
                     data = json.load(f)
                     self.stats = Counter(data.get('features', {}))
-            except Exception:
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logger.debug(f"Could not load usage stats: {e}")
 
-    def _save_stats(self):
+    def _save_stats(self) -> None:
         """Save stats to disk"""
         if not self.enabled:
             return
@@ -65,20 +69,20 @@ class UsageTracker:
                     'features': dict(self.stats),
                     'last_updated': datetime.now().isoformat()
                 }, f, indent=2)
-        except Exception:
-            pass
+        except OSError as e:
+            logger.debug(f"Could not save usage stats: {e}")
 
-    def track(self, feature):
+    def track(self, feature: str) -> None:
         """Track usage of a feature"""
         if self.enabled:
             self.stats[feature] += 1
             self._save_stats()
 
-    def get_stats(self):
+    def get_stats(self) -> dict[str, int]:
         """Get usage statistics"""
         return dict(self.stats)
 
-    def clear_stats(self):
+    def clear_stats(self) -> None:
         """Clear all usage statistics"""
         self.stats.clear()
         self._save_stats()
@@ -86,15 +90,18 @@ class UsageTracker:
 
 _tracker = UsageTracker()
 
-def track_usage(feature):
+
+def track_usage(feature: str) -> None:
     """Track usage of a specific feature"""
     _tracker.track(feature)
 
-def get_usage_stats():
+
+def get_usage_stats() -> dict[str, int]:
     """Get current usage statistics"""
     return _tracker.get_stats()
 
-def clear_usage_stats():
+
+def clear_usage_stats() -> None:
     """Clear all usage statistics"""
     _tracker.clear_stats()
 

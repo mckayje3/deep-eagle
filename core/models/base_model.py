@@ -1,9 +1,11 @@
 """Base model for time-series prediction"""
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Any
 
 import torch
 import torch.nn as nn
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
 
 
 class BaseTimeSeriesModel(nn.Module, ABC):
@@ -30,8 +32,24 @@ class BaseTimeSeriesModel(nn.Module, ABC):
             output_dim: Number of output features
             num_layers: Number of layers
             dropout: Dropout rate
+
+        Raises:
+            ValueError: If any parameter is invalid
         """
         super().__init__()
+
+        # Validate inputs
+        if input_dim <= 0:
+            raise ValueError(f"input_dim must be positive, got {input_dim}")
+        if hidden_dim <= 0:
+            raise ValueError(f"hidden_dim must be positive, got {hidden_dim}")
+        if output_dim <= 0:
+            raise ValueError(f"output_dim must be positive, got {output_dim}")
+        if num_layers <= 0:
+            raise ValueError(f"num_layers must be positive, got {num_layers}")
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError(f"dropout must be in [0.0, 1.0), got {dropout}")
+
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
@@ -51,7 +69,7 @@ class BaseTimeSeriesModel(nn.Module, ABC):
         """
         pass
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Get model configuration"""
         return {
             'input_dim': self.input_dim,
@@ -74,6 +92,7 @@ class BaseTimeSeriesModel(nn.Module, ABC):
 
     def load(self, path: str):
         """Load model weights"""
-        checkpoint = torch.load(path)
+        # Use weights_only=True for security (prevents arbitrary code execution)
+        checkpoint = torch.load(path, weights_only=True)
         self.load_state_dict(checkpoint['state_dict'])
         return checkpoint.get('config', {})

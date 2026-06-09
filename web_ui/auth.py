@@ -2,12 +2,18 @@
 Authentication module for Deep-TimeSeries Dashboard
 Handles user login and session management
 """
+from __future__ import annotations
 
-import streamlit as st
 import hashlib
 import json
+import logging
+import secrets
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional
+
+import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 
 class AuthManager:
@@ -23,14 +29,14 @@ class AuthManager:
         self.users_file = Path(users_file)
         self.users = self._load_users()
 
-    def _load_users(self) -> Dict[str, str]:
+    def _load_users(self) -> dict[str, str]:
         """Load users from configuration file"""
         if self.users_file.exists():
             try:
                 with open(self.users_file, 'r') as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Failed to load users file: {e}")
 
         # Default users if file doesn't exist
         # Format: {"username": "hashed_password"}
@@ -38,19 +44,22 @@ class AuthManager:
             "admin": self._hash_password("admin123"),
         }
 
-    def _save_users(self):
+    def _save_users(self) -> None:
         """Save users to configuration file"""
         try:
             self.users_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.users_file, 'w') as f:
                 json.dump(self.users, f, indent=2)
-        except Exception as e:
+        except OSError as e:
+            logger.error(f"Failed to save users: {e}")
             st.error(f"Failed to save users: {e}")
 
     @staticmethod
     def _hash_password(password: str) -> str:
-        """Hash password using SHA-256"""
-        return hashlib.sha256(password.encode()).hexdigest()
+        """Hash password using SHA-256 with a constant salt for consistency"""
+        # Note: For production, consider using bcrypt or argon2 with per-user salts
+        salt = "deep_eagle_salt_v1"
+        return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
     def verify_credentials(self, username: str, password: str) -> bool:
         """
@@ -67,7 +76,8 @@ class AuthManager:
             return False
 
         hashed_password = self._hash_password(password)
-        return self.users[username] == hashed_password
+        # Use timing-safe comparison to prevent timing attacks
+        return secrets.compare_digest(self.users[username], hashed_password)
 
     def add_user(self, username: str, password: str) -> bool:
         """

@@ -1,12 +1,17 @@
 """Training loop implementation"""
+from __future__ import annotations
 
+import logging
+from typing import Callable
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
-from typing import Optional, List, Dict, Any, Callable
 from tqdm import tqdm
-import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer:
@@ -27,7 +32,7 @@ class Trainer:
         optimizer: Optimizer,
         criterion: nn.Module,
         device: str = 'cpu',
-        callbacks: Optional[List] = None,
+        callbacks: list | None = None,
     ):
         self.model = model.to(device)
         self.optimizer = optimizer
@@ -35,7 +40,7 @@ class Trainer:
         self.device = device
         self.callbacks = callbacks or []
 
-        self.history = {
+        self.history: dict[str, list] = {
             'train_loss': [],
             'val_loss': [],
             'train_metrics': [],
@@ -47,8 +52,8 @@ class Trainer:
     def train_epoch(
         self,
         train_loader: DataLoader,
-        metrics: Optional[Dict[str, Callable]] = None,
-    ) -> Dict[str, float]:
+        metrics: dict[str, Callable] | None = None,
+    ) -> dict[str, float]:
         """
         Train for one epoch
 
@@ -108,8 +113,8 @@ class Trainer:
     def validate(
         self,
         val_loader: DataLoader,
-        metrics: Optional[Dict[str, Callable]] = None,
-    ) -> Dict[str, float]:
+        metrics: dict[str, Callable] | None = None,
+    ) -> dict[str, float]:
         """
         Validate the model
 
@@ -164,11 +169,11 @@ class Trainer:
     def fit(
         self,
         train_loader: DataLoader,
-        val_loader: Optional[DataLoader] = None,
+        val_loader: DataLoader | None = None,
         epochs: int = 10,
-        metrics: Optional[Dict[str, Callable]] = None,
+        metrics: dict[str, Callable] | None = None,
         verbose: bool = True,
-    ) -> Dict[str, List[float]]:
+    ) -> dict[str, list[float]]:
         """
         Train the model
 
@@ -195,11 +200,11 @@ class Trainer:
             self.history['train_loss'].append(train_results['loss'])
 
             if verbose:
-                print(f"\nEpoch {epoch + 1}/{epochs}")
-                print(f"  Train Loss: {train_results['loss']:.4f}")
+                logger.info(f"Epoch {epoch + 1}/{epochs}")
+                logger.info(f"  Train Loss: {train_results['loss']:.4f}")
                 for name, value in train_results.items():
                     if name != 'loss':
-                        print(f"  Train {name}: {value:.4f}")
+                        logger.info(f"  Train {name}: {value:.4f}")
 
             # Validate
             if val_loader is not None:
@@ -207,10 +212,10 @@ class Trainer:
                 self.history['val_loss'].append(val_results['loss'])
 
                 if verbose:
-                    print(f"  Val Loss: {val_results['loss']:.4f}")
+                    logger.info(f"  Val Loss: {val_results['loss']:.4f}")
                     for name, value in val_results.items():
                         if name != 'loss':
-                            print(f"  Val {name}: {value:.4f}")
+                            logger.info(f"  Val {name}: {value:.4f}")
 
             # Call on_epoch_end callbacks
             stop_training = False
@@ -221,7 +226,7 @@ class Trainer:
 
             if stop_training:
                 if verbose:
-                    print("\nEarly stopping triggered")
+                    logger.info("Early stopping triggered")
                 break
 
         return self.history
@@ -247,7 +252,7 @@ class Trainer:
 
         return np.concatenate(predictions, axis=0)
 
-    def save_checkpoint(self, path: str):
+    def save_checkpoint(self, path: str) -> None:
         """Save training checkpoint"""
         torch.save({
             'epoch': self.current_epoch,
@@ -256,9 +261,10 @@ class Trainer:
             'history': self.history,
         }, path)
 
-    def load_checkpoint(self, path: str):
+    def load_checkpoint(self, path: str) -> None:
         """Load training checkpoint"""
-        checkpoint = torch.load(path)
+        # Use weights_only=True for security (prevents arbitrary code execution)
+        checkpoint = torch.load(path, weights_only=True)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.current_epoch = checkpoint['epoch']
