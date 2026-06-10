@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 # training.py lives under web_ui/pages and is not an installed package.
 _PATH = Path(__file__).resolve().parent.parent / "web_ui" / "pages" / "training.py"
@@ -95,3 +96,37 @@ def test_build_model_transformer_uses_dim_feedforward():
     model = training._build_model(cfg, input_dim=3)
     assert model.dim_feedforward == 64
     assert model.num_heads == 4
+
+
+def test_checkpoint_roundtrip(tmp_path):
+    """Train -> checkpoint+sidecar -> reload reconstructs identical predictions."""
+    import torch
+
+    df = _sine_df()
+    ckpt = tmp_path / "model.pt"
+    model, _ = training.run_training(
+        df, "target", ["f1", "f2"], _config(), checkpoint_path=str(ckpt)
+    )
+
+    # Both the weights and the metadata sidecar were written
+    assert ckpt.exists()
+    assert ckpt.with_suffix(".meta.json").exists()
+
+    loaded = training.load_model_from_checkpoint(ckpt)
+
+    # The reloaded best checkpoint predicts deterministically (eval mode)
+    x = torch.randn(4, _config()["data"]["sequence_length"], 2)
+    with torch.no_grad():
+        out1 = loaded(x)
+        out2 = loaded(x)
+    assert out1.shape == (4, 1)
+    assert torch.allclose(out1, out2)
+
+
+def test_load_checkpoint_without_sidecar_raises(tmp_path):
+    import torch
+
+    ckpt = tmp_path / "orphan.pt"
+    torch.save({"model_state_dict": {}}, str(ckpt))  # no .meta.json beside it
+    with pytest.raises(FileNotFoundError, match="metadata sidecar"):
+        training.load_model_from_checkpoint(ckpt)

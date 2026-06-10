@@ -1,11 +1,60 @@
 """Training page with real-time monitoring"""
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+# Default checkpoint location written by the ModelCheckpoint callback and listed
+# in the "Model Checkpoints" section.
+CHECKPOINT_PATH = "checkpoints/best_model.pt"
+
+
+def _meta_path(checkpoint_path) -> Path:
+    """Sidecar JSON path that records a checkpoint's model architecture."""
+    return Path(checkpoint_path).with_suffix(".meta.json")
+
+
+def load_model_from_checkpoint(checkpoint_path):
+    """
+    Reconstruct a model from a checkpoint and its metadata sidecar, then load
+    the saved weights. Streamlit-free so it can be unit-tested.
+
+    Checkpoints written by this page are self-describing: a ``*.meta.json`` sidecar
+    records the model type and constructor config, so the architecture can be
+    rebuilt exactly before loading the state dict.
+
+    Raises:
+        FileNotFoundError: If the metadata sidecar is missing (e.g. a checkpoint
+            from before self-describing metadata existed).
+        ValueError: If the metadata names an unknown model type.
+    """
+    from core import GRUModel, LSTMModel, TransformerModel
+    from core.utils import safe_torch_load
+
+    registry = {"lstm": LSTMModel, "gru": GRUModel, "transformer": TransformerModel}
+
+    meta_path = _meta_path(checkpoint_path)
+    if not meta_path.exists():
+        raise FileNotFoundError(
+            f"No metadata sidecar ({meta_path.name}) for this checkpoint, so its "
+            "architecture can't be reconstructed. Re-train to produce a "
+            "self-describing checkpoint."
+        )
+
+    meta = json.loads(meta_path.read_text())
+    model_cls = registry.get(meta["model_type"])
+    if model_cls is None:
+        raise ValueError(f"Unknown model type in checkpoint metadata: {meta['model_type']!r}")
+
+    model = model_cls(**meta["config"])
+    checkpoint = safe_torch_load(str(checkpoint_path))
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
+    return model
 
 
 def show():
@@ -108,7 +157,12 @@ def show():
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Load Checkpoint"):
-                    st.success(f"✅ Loaded {selected_checkpoint.name}")
+                    try:
+                        model = load_model_from_checkpoint(selected_checkpoint)
+                        st.session_state.trained_model = model
+                        st.success(f"✅ Loaded {selected_checkpoint.name}")
+                    except Exception as e:
+                        st.error(f"Could not load checkpoint: {e}")
 
             with col2:
                 if st.button("Delete Checkpoint"):
@@ -168,14 +222,17 @@ def _build_optimizer(config, model):
     return optimizer_cls(model.parameters(), lr=config["training"]["learning_rate"])
 
 
-def run_training(df, target_col, feature_cols, config, progress_callback=None):
+def run_training(
+    df, target_col, feature_cols, config, progress_callback=None, checkpoint_path=CHECKPOINT_PATH
+):
     """
     Run real training end-to-end and return ``(model, history)``.
 
     Free of Streamlit so it can be unit-tested. Uses a chronological (non-shuffled)
     train/validation split and fits the scaler on the training slice only, so there
     is no lookahead leakage. Pass ``progress_callback(epoch, train_loss, val_loss)``
-    to receive per-epoch updates.
+    to receive per-epoch updates. Writes a self-describing metadata sidecar next to
+    ``checkpoint_path`` so the saved checkpoint can be reloaded later.
     """
     import torch.nn as nn
 
@@ -232,6 +289,14 @@ def run_training(df, target_col, feature_cols, config, progress_callback=None):
     model = _build_model(config, train_dataset.n_features)
     optimizer = _build_optimizer(config, model)
 
+    # Write a self-describing sidecar so the checkpoint can be reloaded later,
+    # even in a fresh session with a different config.
+    checkpoint_path = Path(checkpoint_path)
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    _meta_path(checkpoint_path).write_text(
+        json.dumps({"model_type": config["model"]["type"], "config": model.get_config()}, indent=2)
+    )
+
     callbacks = []
     early = config["training"].get("early_stopping", {"enabled": False})
     if early.get("enabled"):
@@ -241,8 +306,7 @@ def run_training(df, target_col, feature_cols, config, progress_callback=None):
                 min_delta=early.get("min_delta", 0.0001),
             )
         )
-    Path("checkpoints").mkdir(exist_ok=True)
-    callbacks.append(ModelCheckpoint(filepath="checkpoints/best_model.pt", verbose=False))
+    callbacks.append(ModelCheckpoint(filepath=str(checkpoint_path), verbose=False))
     if progress_callback is not None:
         callbacks.append(_EpochProgressCallback(progress_callback))
 
